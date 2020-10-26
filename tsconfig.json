@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "lib": ["ES2018", "dom"],
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2018",
+    "outDir": "dist",
+    "resolveJsonModule": true,
+    "esModuleInterop": true
+  },
+  "exclude": ["dist", "node_modules"],
+  "files": [
+    "./hardhat.config.ts",
+    "./scripts/**/*.ts",
+    "./test/**/*.ts",
+    "node_modules/@nomiclabs/hardhat-ethers/src/type-extensions.d.ts",
+    "node_modules/@nomiclabs/hardhat-etherscan/src/type-extensions.d.ts",
+    "node_modules/@nomiclabs/hardhat-waffle/src/type-extensions.d.ts",
+    "node_modules/hardhat-typechain/src/type-extensions.d.ts"
+  ]
+}
