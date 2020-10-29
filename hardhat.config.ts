@@ -7,6 +7,7 @@ import '@nomiclabs/hardhat-etherscan'
 import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
 import 'hardhat-abi-exporter'
+import 'hardhat-typechain'
 
 // Networks
 
@@ -77,7 +78,7 @@ const config = {
     hardhat: {
       chainId: 1337,
       loggingEnabled: false,
-      gas: 11000000,
+      gas: 12000000,
       gasPrice: 'auto',
       blockGasLimit: 12000000,
     },
@@ -90,10 +91,18 @@ const config = {
     url: process.env.ETHERSCAN_API_URL,
     apiKey: process.env.ETHERSCAN_API_KEY,
   },
+  typechain: {
+    outDir: 'build/typechain/contracts',
+    target: 'ethers-v5',
+  },
   abiExporter: {
     path: './build/abis',
     clear: false,
     flat: true,
+  },
+  contractSizer: {
+    alphaSort: true,
+    runOnCompile: false,
   },
 }
 

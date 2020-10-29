@@ -3,5 +3,3 @@
 set -eo pipefail
 
 yarn run compile
-yarn run flatten
-yarn run typechain

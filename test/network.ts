@@ -52,6 +52,8 @@ export const getChainID = (): Promise<number> => {
 }
 
 export const latestBlockNum = (): Promise<BigNumber> => provider().getBlockNumber().then(toBN)
+export const latestBlock = async (): Promise<providers.Block> => provider().getBlock(await provider().getBlockNumber())
+export const latestBlockTime = async (): Promise<number> => latestBlock().then((block) => block.timestamp)
 
 export const advanceBlock = (): Promise<void> => {
   return provider().send('evm_mine', [])
