@@ -149,8 +149,9 @@ contract GraphTokenDistributor is Ownable {
         uint claimableTokens = beneficiaries[msg.sender];
         require(claimableTokens > 0, "Distributor: Unavailable funds");
 
-        token.safeTransfer(_to, claimableTokens);
+        _setBeneficiaryTokens(msg.sender, 0);
 
+        token.safeTransfer(_to, claimableTokens);
         emit TokensClaimed(msg.sender, _to, claimableTokens);
     }
 }

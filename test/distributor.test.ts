@@ -146,6 +146,14 @@ describe('GraphTokenDistributor', () => {
       const tx = distributor.connect(beneficiary2.signer).claim()
       await expect(tx).revertedWith('Distributor: Unavailable funds')
     })
+
+    it('reject claim if beneficiary already claimed all tokens', async function () {
+      await distributor.connect(deployer.signer).setLocked(false)
+
+      await distributor.connect(beneficiary1.signer).claim()
+      const tx = distributor.connect(beneficiary1.signer).claim()
+      await expect(tx).revertedWith('Distributor: Unavailable funds')
+    })
   })
 
   describe('deposit & withdraw', function () {
