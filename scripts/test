@@ -38,7 +38,6 @@ fi
 mkdir -p reports
 
 yarn run compile
-yarn run typechain
 
 if [ "$RUN_EVM" = true ]; then
   # Run using the standalone evm instance

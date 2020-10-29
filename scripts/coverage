@@ -3,5 +3,4 @@
 set -eo pipefail
 
 yarn run compile
-yarn run typechain
 npx hardhat coverage $@

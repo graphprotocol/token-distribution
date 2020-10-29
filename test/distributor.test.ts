@@ -24,10 +24,11 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
     from: deployer.address,
     args: [grt.address],
   })
+  const distributor = await getContract('GraphTokenDistributor')
 
   return {
-    grt,
-    distributor: await getContract('GraphTokenDistributor'),
+    grt: grt as GraphTokenMock,
+    distributor: distributor as GraphTokenDistributor,
   }
 })
 
