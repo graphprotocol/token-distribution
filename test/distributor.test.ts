@@ -1,3 +1,4 @@
+import { constants } from 'ethers'
 import { expect } from 'chai'
 import { deployments } from 'hardhat'
 import 'hardhat-deploy'
@@ -6,6 +7,8 @@ import { GraphTokenMock } from '../build/typechain/contracts/GraphTokenMock'
 import { GraphTokenDistributor } from '../build/typechain/contracts/GraphTokenDistributor'
 
 import { getContract, getAccounts, toGRT, Account } from './network'
+
+const { AddressZero } = constants
 
 // Fixture
 const setupTest = deployments.createFixture(async ({ deployments }) => {
@@ -22,12 +25,13 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   // Deploy distributor
   await deploy('GraphTokenDistributor', {
     from: deployer.address,
-    args: [grt.address],
   })
+  const distributor = (await getContract('GraphTokenDistributor')) as GraphTokenDistributor
+  await distributor.setToken(grt.address)
 
   return {
     grt,
-    distributor: await getContract('GraphTokenDistributor'),
+    distributor,
   }
 })
 
@@ -54,6 +58,18 @@ describe('GraphTokenDistributor', () => {
     })
   })
 
+  describe('setup token', function () {
+    it('should set token', async function () {
+      const tx = distributor.setToken(grt.address)
+      await expect(tx).emit(distributor, 'TokenUpdated').withArgs(grt.address)
+    })
+
+    it('reject set to empty token', async function () {
+      const tx = distributor.setToken(AddressZero)
+      await expect(tx).revertedWith('Distributor: !token')
+    })
+  })
+
   describe('setup beneficiary', function () {
     const amount = toGRT('100')
 
@@ -72,14 +88,14 @@ describe('GraphTokenDistributor', () => {
         const accounts = [beneficiary1.address, beneficiary2.address]
         const amounts = [amount, amount]
 
-        await distributor.connect(deployer.signer).addBeneficiaryTokensMulti(accounts, amounts)
+        await distributor.connect(deployer.signer).addBeneficiaryTokensMany(accounts, amounts)
       })
 
       it('reject add token to multiple beneficiaries if not allowed', async function () {
         const accounts = [beneficiary1.address, beneficiary2.address]
         const amounts = [amount, amount]
 
-        const tx = distributor.connect(beneficiary1.signer).addBeneficiaryTokensMulti(accounts, amounts)
+        const tx = distributor.connect(beneficiary1.signer).addBeneficiaryTokensMany(accounts, amounts)
         await expect(tx).revertedWith('Ownable: caller is not the owner')
       })
     })
