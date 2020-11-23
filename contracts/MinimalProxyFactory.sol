@@ -5,6 +5,8 @@ pragma solidity ^0.7.3;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
+// Adapted from https://github.com/OpenZeppelin/openzeppelin-sdk/blob/v2.5.0/packages/lib/contracts/upgradeability/ProxyFactory.sol
+// Based on https://eips.ethereum.org/EIPS/eip-1167
 contract MinimalProxyFactory is Ownable {
     // -- Events --
 
@@ -27,7 +29,6 @@ contract MinimalProxyFactory is Ownable {
      * @return proxy Address of the deployed MinimalProxy
      */
     function _deployProxy(address _implementation, bytes memory _data) internal returns (address proxy) {
-        // Adapted from https://github.com/OpenZeppelin/openzeppelin-sdk/blob/v2.5.0/packages/lib/contracts/upgradeability/ProxyFactory.sol
         bytes20 targetBytes = bytes20(_implementation);
         assembly {
             let clone := mload(0x40)
