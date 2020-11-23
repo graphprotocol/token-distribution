@@ -7,10 +7,14 @@ An important premise is that participants with locked tokens can perform a numbe
 
 ### GraphTokenLock
 
-Contract that manages an unlocking schedule of tokens for participants in the Graph Network to be released under certain time conditions. The time conditions include a startTime, endTime and number of periods. This contract can be used with zero periods in which case it is like a plain TimeLock.
+The contract lock manage a number of tokens deposited into the contract to ensure that they can only be released under certain time conditions.
 
-It supports revocation to be used for certain participants with vesting schedules. The contract also supports receiving extra funds over the managed tokens that can be withdrawn.
+This contract implements a release scheduled based on periods and tokens are released in steps after each period ends. It can be configured with one period in which case it is like a plain TimeLock.
+It also supports revocation to be used for vesting schedules.
 
+The contract supports receiving extra funds than the managed tokens ones that can be withdrawn by the beneficiary at any time.
+
+A releaseStartTime parameter is included to override the default release schedule and perform the first release on the configured time. After that it will continue with the default schedule.
 ### GraphTokenLockWallet
 
 This contract is built on top of the base **GraphTokenLock** functionality. It allows the use of locked funds only when certain function calls are issued to the contract. 
