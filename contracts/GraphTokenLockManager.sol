@@ -192,7 +192,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
      * @param _dst Destination address
      * @return True if authorized
      */
-    function isTokenDestination(address _dst) external override view returns (bool) {
+    function isTokenDestination(address _dst) external view override returns (bool) {
         return _tokenDestinations.contains(_dst);
     }
 
@@ -202,7 +202,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
      */
     function getTokenDestinations() external view override returns (address[] memory) {
         address[] memory dstList = new address[](_tokenDestinations.length());
-        for(uint256 i = 0; i < _tokenDestinations.length(); i++) {
+        for (uint256 i = 0; i < _tokenDestinations.length(); i++) {
             dstList[i] = _tokenDestinations.at(i);
         }
         return dstList;
