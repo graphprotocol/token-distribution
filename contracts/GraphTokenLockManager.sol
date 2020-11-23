@@ -253,6 +253,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
     /**
      * @notice Sets an authorized function call to target
      * @dev Input expected is the function signature as 'transfer(address,uint256)'
+     * @dev Function signatures of Graph Protocol contracts to be used are known ahead of time
      * @param _signature Function signature
      * @param _target Address of the destination contract to call
      */

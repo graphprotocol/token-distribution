@@ -12,7 +12,8 @@ import "./IGraphTokenLockManager.sol";
 /**
  * @title GraphTokenLockWallet
  * @notice This contract is built on top of the base GraphTokenLock functionality.
- * It allows to use the deposited funds only by certain function calls.
+ * It allows wallet beneficiaries to use the deposited funds to perform specific function calls
+ * on specific contracts.
  *
  * The idea is that supporters with locked tokens can participate in the protocol
  * but disallow any release before the vesting/lock schedule.

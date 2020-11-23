@@ -27,6 +27,28 @@ Locked tokens must only leave this contract under the locking rules and by the b
 
 Some users can profit by participating in the protocol through their locked tokens, if they withdraw them from the protocol back to the lock contract, they should be able to withdraw those surplus funds out of the contract.
 
+The following functions signatures will be authorized for use:
+
+```
+### Target
+
+- Staking contract address
+
+
+### Function Signatures
+
+- setOperator(address,bool)
+
+- stake(uint256)
+- unstake(uint256)
+- withdraw()
+
+- setDelegationParameters(uint32,uint32,uint32)
+- delegate(address,uint256)
+- undelegate(address,uint256)
+- withdrawDelegated(address,address)
+```
+
 ### GraphTokenLockManager
 
 Contract that works as a factory of **GraphTokenLockWallet** contracts. It manages the function calls authorized to be called on any GraphTokenWallet and also holds addresses of our protocol contracts configured as targets.
