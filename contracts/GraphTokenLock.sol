@@ -307,7 +307,7 @@ contract GraphTokenLock is Ownable {
      */
     function withdrawSurplus(uint256 _amount) external onlyBeneficiary {
         require(_amount > 0, "Amount cannot be zero");
-        require(surplusAmount() >= _amount, "No available surplus amount");
+        require(surplusAmount() >= _amount, "Amount requested > surplus available");
 
         token.safeTransfer(beneficiary, _amount);
 

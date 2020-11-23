@@ -476,7 +476,7 @@ describe('GraphTokenLock', () => {
 
             // Revert if trying to withdraw more than managed amount
             const tx1 = tokenLock.connect(beneficiary1.signer).withdrawSurplus(amountToWithdraw.add(1))
-            await expect(tx1).revertedWith('No available surplus amount')
+            await expect(tx1).revertedWith('Amount requested > surplus available')
 
             // Before state
             const before = await getState(tokenLock)
@@ -517,7 +517,7 @@ describe('GraphTokenLock', () => {
 
           it('reject withdraw more than available funds', async function () {
             const tx = tokenLock.connect(beneficiary1.signer).withdrawSurplus(toGRT('100'))
-            await expect(tx).revertedWith('No available surplus amount')
+            await expect(tx).revertedWith('Amount requested > surplus available')
           })
         })
 
