@@ -48,7 +48,7 @@ contract StakingMock {
         require(stakes[_indexer].tokensSecureStake().add(_tokens) >= minimumIndexerStake, "!minimumIndexerStake");
 
         // Transfer tokens to stake from caller to this contract
-        require(token.transferFrom(msg.sender,  address(this), _tokens), "!transfer");
+        require(token.transferFrom(msg.sender, address(this), _tokens), "!transfer");
 
         // Stake the transferred tokens
         _stake(_indexer, _tokens);
