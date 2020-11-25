@@ -9,6 +9,10 @@ import 'hardhat-deploy'
 import 'hardhat-abi-exporter'
 import 'hardhat-typechain'
 
+// Tasks
+
+import './ops/create'
+
 // Networks
 
 interface NetworkConfig {
@@ -85,6 +89,11 @@ const config = {
     ganache: {
       chainId: 1337,
       url: 'http://localhost:8545',
+    },
+  },
+  namedAccounts: {
+    deployer: {
+      default: 0,
     },
   },
   etherscan: {
