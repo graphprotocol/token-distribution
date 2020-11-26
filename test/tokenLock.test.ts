@@ -38,33 +38,30 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
 
 const advancePeriods = async (tokenLock: GraphTokenLockSimple, n = 1) => {
   const periodDuration = await tokenLock.periodDuration()
-  return advanceTimeAndBlock(periodDuration.mul(n).toNumber()) // advance one period
+  return advanceTimeAndBlock(periodDuration.mul(n).toNumber()) // advance N period
 }
 
-const advanceToAboutStart = async (tokenLock: GraphTokenLockSimple) => {
-  // 60 second buffer to accommodate precision error
-  const target = (await tokenLock.startTime()).sub(60)
-  const delta = target.sub(await tokenLock.currentTime())
+const moveToTime = async (tokenLock: GraphTokenLockSimple, target: BigNumber, buffer: number) => {
+  const ts = await tokenLock.currentTime()
+  const delta = target.sub(ts).add(buffer)
   return advanceTimeAndBlock(delta.toNumber())
 }
 
-const advanceToStart = async (tokenLock: GraphTokenLockSimple) => {
-  // 60 second buffer to accommodate precision error
-  const target = (await tokenLock.startTime()).add(60)
-  const delta = target.sub(await tokenLock.currentTime())
-  return advanceTimeAndBlock(delta.toNumber())
-}
-
-const advanceToEnd = async (tokenLock: GraphTokenLockSimple) => {
-  // 60 second buffer to accommodate precision error
-  const target = (await tokenLock.endTime()).add(60)
-  const delta = target.sub(await tokenLock.currentTime())
-  return advanceTimeAndBlock(delta.toNumber())
+const advanceToStart = async (tokenLock: GraphTokenLockSimple) => moveToTime(tokenLock, await tokenLock.startTime(), 60)
+const advanceToEnd = async (tokenLock: GraphTokenLockSimple) => moveToTime(tokenLock, await tokenLock.endTime(), 60)
+const advanceToAboutStart = async (tokenLock: GraphTokenLockSimple) =>
+  moveToTime(tokenLock, await tokenLock.startTime(), -60)
+const advanceToReleasable = async (tokenLock: GraphTokenLockSimple) => {
+  const values = await Promise.all([
+    tokenLock.vestingCliffTime(),
+    tokenLock.releaseStartTime(),
+    tokenLock.startTime(),
+  ]).then((values) => values.map((e) => e.toNumber()))
+  const time = Math.max(...values)
+  moveToTime(tokenLock, BigNumber.from(time), 60)
 }
 
 const forEachPeriod = async (tokenLock: GraphTokenLockSimple, fn) => {
-  await advanceToStart(tokenLock)
-
   const periods = (await tokenLock.periods()).toNumber()
   for (let currentPeriod = 1; currentPeriod <= periods + 1; currentPeriod++) {
     const currentPeriod = await tokenLock.currentPeriod()
@@ -111,7 +108,8 @@ describe('GraphTokenLockSimple', () => {
         args.startTime,
         args.endTime,
         args.periods,
-        0,
+        args.releaseStartTime,
+        args.vestingCliffTime,
         args.revocable,
       )
   }
@@ -140,6 +138,7 @@ describe('GraphTokenLockSimple', () => {
           args.startTime,
           args.endTime,
           args.periods,
+          0,
           0,
           Revocability.NotSet,
         )
@@ -180,6 +179,8 @@ describe('GraphTokenLockSimple', () => {
           expect(await tokenLock.endTime()).eq(initArgs.endTime)
           expect(await tokenLock.periods()).eq(initArgs.periods)
           expect(await tokenLock.token()).eq(initArgs.token)
+          expect(await tokenLock.releaseStartTime()).eq(initArgs.releaseStartTime)
+          expect(await tokenLock.vestingCliffTime()).eq(initArgs.vestingCliffTime)
           expect(await tokenLock.revocable()).eq(initArgs.revocable)
         })
       })
@@ -280,6 +281,7 @@ describe('GraphTokenLockSimple', () => {
           })
 
           it('should return correct amount for each period', async function () {
+            await advanceToStart(tokenLock)
             await shouldMatchSchedule(tokenLock, 'availableAmount', initArgs)
           })
 
@@ -295,16 +297,36 @@ describe('GraphTokenLockSimple', () => {
           it('should be fully vested if non-revocable', async function () {
             const revocable = await tokenLock.revocable()
             const vestedAmount = await tokenLock.vestedAmount()
-            if (revocable == Revocability.Disabled) {
+            if (revocable === Revocability.Disabled) {
               expect(vestedAmount).eq(await tokenLock.managedAmount())
             }
           })
 
           it('should match the vesting schedule if revocable', async function () {
-            const revocable = await tokenLock.revocable()
-            if (revocable == Revocability.Enabled) {
-              await shouldMatchSchedule(tokenLock, 'vestedAmount', initArgs)
-            }
+            if (initArgs.revocable === Revocability.Disabled) return
+
+            const cliffTime = await tokenLock.vestingCliffTime()
+
+            await forEachPeriod(tokenLock, async function (passedPeriods: BigNumber) {
+              const amount = (await tokenLock.functions['vestedAmount']())[0]
+              const amountPerPeriod = await tokenLock.amountPerPeriod()
+              const managedAmount = await tokenLock.managedAmount()
+              const currentTime = await tokenLock.currentTime()
+
+              // console.log(`\t    - amount: ${formatGRT(amount)}/${formatGRT(managedAmount)}`)
+
+              let expectedAmount = managedAmount
+              // Before cliff no vested tokens
+              if (cliffTime.gt(0) && currentTime.lt(cliffTime)) {
+                expectedAmount = BigNumber.from(0)
+              } else {
+                // After last period we expect to have all managed tokens available
+                if (passedPeriods.lt(initArgs.periods)) {
+                  expectedAmount = passedPeriods.mul(amountPerPeriod)
+                }
+              }
+              expect(amount).eq(expectedAmount)
+            })
           })
         })
 
@@ -322,11 +344,12 @@ describe('GraphTokenLockSimple', () => {
             })
 
             it('should match the release schedule', async function () {
+              await advanceToReleasable(tokenLock)
               await shouldMatchSchedule(tokenLock, 'releasableAmount', initArgs)
             })
 
             it('should subtract already released amount', async function () {
-              await advanceToStart(tokenLock)
+              await advanceToReleasable(tokenLock)
 
               // After one period release
               await advancePeriods(tokenLock, 1)
@@ -362,7 +385,7 @@ describe('GraphTokenLockSimple', () => {
 
             it('should be the total managed less the already released amount', async function () {
               // Setup
-              await advanceToStart(tokenLock)
+              await advanceToReleasable(tokenLock)
               await advancePeriods(tokenLock, 1)
 
               // Release
@@ -402,7 +425,7 @@ describe('GraphTokenLockSimple', () => {
           it('should return any balance over outstanding amount', async function () {
             // Setup
             await fundContract(tokenLock)
-            await advanceToStart(tokenLock)
+            await advanceToReleasable(tokenLock)
             await advancePeriods(tokenLock, 1)
             await tokenLock.connect(beneficiary1.signer).release()
 
@@ -431,7 +454,7 @@ describe('GraphTokenLockSimple', () => {
           it('should release the scheduled amount', async function () {
             // Setup
             await fundContract(tokenLock)
-            await advanceToStart(tokenLock)
+            await advanceToReleasable(tokenLock)
             await advancePeriods(tokenLock, 1)
 
             // Before state
@@ -447,6 +470,51 @@ describe('GraphTokenLockSimple', () => {
             expect(after.beneficiaryBalance).eq(before.beneficiaryBalance.add(amountToRelease))
             expect(after.contractBalance).eq(before.contractBalance.sub(amountToRelease))
             expect(await tokenLock.releasableAmount()).eq(0)
+          })
+
+          it('should release only vested amount after being revoked', async function () {
+            if (initArgs.revocable === Revocability.Disabled) return
+
+            // Setup
+            await fundContract(tokenLock)
+            await advanceToStart(tokenLock)
+
+            // Move to cliff if any
+            if (initArgs.vestingCliffTime) {
+              await moveToTime(tokenLock, await tokenLock.vestingCliffTime(), 60)
+            }
+
+            // Vest some amount
+            await advancePeriods(tokenLock, 2) // fwd two periods
+
+            // Owner revokes the contract
+            await tokenLock.connect(deployer.signer).revoke()
+            const vestedAmount = await tokenLock.vestedAmount()
+
+            // Some more periods passed
+            await advancePeriods(tokenLock, 2) // fwd two periods
+
+            // Release
+            const tx = tokenLock.connect(beneficiary1.signer).release()
+            await expect(tx).emit(tokenLock, 'TokensReleased').withArgs(beneficiary1.address, vestedAmount)
+          })
+
+          it('reject release vested amount before cliff', async function () {
+            if (initArgs.revocable === Revocability.Disabled) return
+            if (!initArgs.vestingCliffTime) return
+
+            // Setup
+            await fundContract(tokenLock)
+            await advanceToStart(tokenLock)
+            await advancePeriods(tokenLock, 2) // fwd two periods
+
+            // Release before cliff
+            const tx1 = tokenLock.connect(beneficiary1.signer).release()
+            await expect(tx1).revertedWith('No available releasable amount')
+
+            // Release after cliff
+            await moveToTime(tokenLock, await tokenLock.vestingCliffTime(), 60)
+            await tokenLock.connect(beneficiary1.signer).release()
           })
 
           it('reject release if no funds available', async function () {
@@ -526,7 +594,7 @@ describe('GraphTokenLockSimple', () => {
           })
 
           it('should revoke and get funds back to owner', async function () {
-            if (initArgs.revocable == Revocability.Enabled) {
+            if (initArgs.revocable === Revocability.Enabled) {
               // Before state
               const before = await getState(tokenLock)
 
@@ -545,7 +613,7 @@ describe('GraphTokenLockSimple', () => {
           })
 
           it('reject revoke multiple times', async function () {
-            if (initArgs.revocable == Revocability.Enabled) {
+            if (initArgs.revocable === Revocability.Enabled) {
               await tokenLock.connect(deployer.signer).revoke()
               const tx = tokenLock.connect(deployer.signer).revoke()
               await expect(tx).revertedWith('Already revoked')
@@ -558,14 +626,14 @@ describe('GraphTokenLockSimple', () => {
           })
 
           it('reject revoke if not revocable', async function () {
-            if (initArgs.revocable == Revocability.Disabled) {
+            if (initArgs.revocable === Revocability.Disabled) {
               const tx = tokenLock.connect(deployer.signer).revoke()
               await expect(tx).revertedWith('Contract is non-revocable')
             }
           })
 
           it('reject revoke if no available unvested amount', async function () {
-            if (initArgs.revocable == Revocability.Enabled) {
+            if (initArgs.revocable === Revocability.Enabled) {
               // Setup
               await advanceToEnd(tokenLock)
 
