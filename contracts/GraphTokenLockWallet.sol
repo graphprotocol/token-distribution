@@ -51,6 +51,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
+        uint256 _vestingCliffTime,
         Revocability _revocable
     ) external {
         _initialize(
@@ -62,6 +63,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
             _endTime,
             _periods,
             _releaseStartTime,
+            _vestingCliffTime,
             _revocable
         );
         _setManager(_manager);

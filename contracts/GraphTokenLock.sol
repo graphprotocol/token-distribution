@@ -51,6 +51,9 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
     // If set, no tokens will be released before releaseStartTime ignoring
     // the amount to release each period
     uint256 public releaseStartTime;
+    // A cliff set a date to which a beneficiary needs to get to vest
+    // all preceeding periods
+    uint256 public vestingCliffTime;
     Revocability public revocable; // Whether to use vesting for locked funds
 
     // State
@@ -82,6 +85,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @param _endTime End time of the release schedule
      * @param _periods Number of periods between start time and end time
      * @param _releaseStartTime Override time for when the releases start
+     * @param _vestingCliffTime Override time for when the vesting start
      * @param _revocable Whether the contract is revocable
      */
     function _initialize(
@@ -93,17 +97,20 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
+        uint256 _vestingCliffTime,
         Revocability _revocable
     ) internal {
         require(!isInitialized, "Already initialized");
         require(_owner != address(0), "Owner cannot be zero");
         require(_beneficiary != address(0), "Beneficiary cannot be zero");
         require(_token != address(0), "Token cannot be zero");
+        require(_managedAmount > 0, "Managed tokens cannot be zero");
         require(_startTime != 0, "Start time must be set");
         require(_startTime < _endTime, "Start time > end time");
-        require(_managedAmount > 0, "Managed tokens cannot be zero");
         require(_periods >= MIN_PERIOD, "Periods cannot be below minimum");
         require(_revocable != Revocability.NotSet, "Must set a revocability option");
+        require(_releaseStartTime < _endTime, "Release start time must be before end time");
+        require(_vestingCliffTime < _endTime, "Cliff time must be before end time");
 
         isInitialized = true;
 
@@ -117,7 +124,9 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
         endTime = _endTime;
         periods = _periods;
 
+        // Optionals
         releaseStartTime = _releaseStartTime;
+        vestingCliffTime = _vestingCliffTime;
         revocable = _revocable;
     }
 
@@ -229,6 +238,11 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
             return managedAmount;
         }
 
+        // Vesting cliff is activated and it has not passed means nothing is vested yet
+        if (vestingCliffTime > 0 && currentTime() < vestingCliffTime) {
+            return 0;
+        }
+
         return availableAmount();
     }
 
@@ -238,10 +252,16 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @return Amount of tokens ready to be released
      */
     function releasableAmount() public override view returns (uint256) {
-        // If a release start time is set no tokens are available before this date
+        // If a release start time is set no tokens are available for release before this date
         // If not set it follows the default schedule and tokens are available on
         // the first period passed
         if (releaseStartTime > 0 && currentTime() < releaseStartTime) {
+            return 0;
+        }
+
+        // Vesting cliff is activated and it has not passed means nothing is vested yet
+        // so funds cannot be released
+        if (revocable == Revocability.Enabled && vestingCliffTime > 0 && currentTime() < vestingCliffTime) {
             return 0;
         }
 
@@ -253,7 +273,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
     /**
      * @notice Gets the outstanding amount yet to be released based on the whole contract lifetime
      * @dev Does not consider schedule but just global amounts tracked
-     * @return Amount of tokens yet to be released
+     * @return Amount of outstanding tokens for the lifetime of the contract
      */
     function totalOutstandingAmount() public override view returns (uint256) {
         return managedAmount.sub(releasedAmount);

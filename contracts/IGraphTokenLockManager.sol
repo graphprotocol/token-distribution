@@ -20,6 +20,7 @@ interface IGraphTokenLockManager {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
+        uint256 _vestingCliffTime,
         IGraphTokenLock.Revocability _revocable
     ) external;
 
