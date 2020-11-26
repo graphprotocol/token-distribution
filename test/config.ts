@@ -14,6 +14,7 @@ export interface TokenLockSchedule {
   periods: number
   revocable: Revocability
   releaseStartTime: number
+  vestingCliffTime: number
 }
 export interface TokenLockParameters {
   owner: string
@@ -25,6 +26,7 @@ export interface TokenLockParameters {
   periods: number
   revocable: Revocability
   releaseStartTime: number
+  vestingCliffTime: number
 }
 
 export interface DateRange {
@@ -55,13 +57,16 @@ const createSchedule = (
   durationMonths: number,
   periods: number,
   revocable: Revocability,
-  releaseStartTime = 0,
+  releaseStartMonths = 0,
+  vestingCliffMonths = 0,
 ) => {
+  const range = dateRange(durationMonths)
   return {
-    ...moveDateRange(dateRange(durationMonths), startMonths),
+    ...moveDateRange(range, startMonths),
     periods,
     revocable,
-    releaseStartTime,
+    releaseStartTime: releaseStartMonths > 0 ? moveTime(range.startTime, releaseStartMonths) : 0,
+    vestingCliffTime: vestingCliffMonths > 0 ? moveTime(range.startTime, vestingCliffMonths) : 0,
   }
 }
 
@@ -71,7 +76,8 @@ export const createScheduleScenarios = (): Array<TokenLockSchedule> => {
     createSchedule(0, 12, 1, Revocability.Disabled), // 12m lock-up + full release  + fully vested
     createSchedule(12, 12, 12, Revocability.Disabled), // 12m lock-up + 1/12 releases  + fully vested
     createSchedule(0, 12, 12, Revocability.Disabled), // no-lockup + 1/12 releases  + fully vested
-    createSchedule(-12, 48, 48, Revocability.Enabled), // 1/48 releases + vested + past start + start time override
+    createSchedule(-12, 48, 48, Revocability.Enabled, 0), // 1/48 releases + vested + past start + start time override
+    createSchedule(-12, 48, 48, Revocability.Enabled, 0, 12), // 1/48 releases + vested + past start + start time override + cliff
   ]
 }
 

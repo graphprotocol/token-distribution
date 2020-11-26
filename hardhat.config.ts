@@ -8,6 +8,7 @@ import '@nomiclabs/hardhat-waffle'
 import 'hardhat-deploy'
 import 'hardhat-abi-exporter'
 import 'hardhat-typechain'
+import 'hardhat-gas-reporter'
 
 // Tasks
 
@@ -129,6 +130,12 @@ const config = {
   contractSizer: {
     alphaSort: true,
     runOnCompile: false,
+  },
+  gasReporter: {
+    enabled: process.env.REPORT_GAS ? true : false,
+    showTimeSpent: true,
+    currency: 'USD',
+    outputFile: 'reports/gas-report.log',
   },
 }
 

@@ -83,7 +83,8 @@ describe('GraphTokenLockWallet', () => {
       args.startTime,
       args.endTime,
       args.periods,
-      0,
+      args.releaseStartTime,
+      args.vestingCliffTime,
       args.revocable,
     )
     const receipt = await tx.wait()
