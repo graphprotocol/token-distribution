@@ -5,6 +5,7 @@ import { utils, BigNumber, Event, providers } from 'ethers'
 
 import { task } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { boolean } from 'hardhat/internal/core/params/argumentTypes'
 
 import { Erc20 } from '../build/typechain/contracts/Erc20'
 import { GraphTokenLockWalletFactory } from '../build/typechain/contracts/GraphTokenLockWalletFactory'
@@ -54,20 +55,23 @@ const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
     })
 }
 
+const deployEntryToCSV = (entry: TokenLockDeployEntry) => {
+  return [
+    entry.beneficiary,
+    formatEther(entry.managedAmount),
+    entry.startTime,
+    entry.endTime,
+    entry.periods,
+    entry.revocable ? 1 : 0,
+    entry.releaseStartTime,
+    entry.contractAddress,
+    entry.salt,
+    entry.txHash,
+  ].join(',')
+}
+
 const saveDeployResult = (filepath: string, entry: TokenLockDeployEntry) => {
-  const line =
-    [
-      entry.beneficiary,
-      formatEther(entry.managedAmount),
-      entry.startTime,
-      entry.endTime,
-      entry.periods,
-      entry.revocable ? 1 : 0,
-      entry.releaseStartTime,
-      entry.contractAddress,
-      entry.salt,
-      entry.txHash,
-    ].join(',') + '\n'
+  const line = deployEntryToCSV(entry) + '\n'
   fs.writeFileSync(filepath, line, {
     flag: 'a+',
   })
@@ -149,10 +153,10 @@ const calculateSalt = (entry: TokenLockConfigEntry, managerAddress: string, toke
 
 const getDeployContractAddresses = async (entries: TokenLockConfigEntry[], manager: GraphTokenLockManager) => {
   const masterCopy = await manager.masterCopy()
-
   for (const entry of entries) {
     const contractAddress = await manager.getDeploymentAddress(entry.salt, masterCopy)
-    console.log(contractAddress)
+    const deployEntry = { ...entry, salt: entry.salt, txHash: '', contractAddress }
+    console.log(deployEntryToCSV(deployEntry))
   }
 }
 
@@ -175,6 +179,7 @@ task('create-token-locks', 'Create token lock contracts from file')
   .addParam('deployFile', 'File from where to read the deploy config')
   .addParam('resultFile', 'File where to save results')
   .addParam('ownerAddress', 'Owner address of token lock contracts')
+  .addOptionalParam('dryRun', 'Get the deterministic contract addresses but do not deploy', false, boolean)
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
     // Get contracts
     const deployment = await hre.deployments.get('GraphTokenLockManager')
@@ -194,11 +199,13 @@ task('create-token-locks', 'Create token lock contracts from file')
       process.exit(1)
     }
 
-    // Deploy
+    // Prepare
     logger.log(await prettyEnv(hre))
 
+    const tokenAddress = await manager.token()
+
     logger.info('Deploying token lock contracts...')
-    logger.log(`> GraphToken: ${await manager.token()}`)
+    logger.log(`> GraphToken: ${tokenAddress}`)
     logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
     logger.log(`> GraphTokenLockManager: ${manager.address}`)
 
@@ -215,8 +222,14 @@ task('create-token-locks', 'Create token lock contracts from file')
     let deployedEntries = loadDeployData('/' + taskArgs.resultFile)
 
     // Populate entries
-    entries = populateEntries(entries, manager.address, await manager.token(), taskArgs.ownerAddress)
-    deployedEntries = populateEntries(deployedEntries, manager.address, await manager.token(), taskArgs.ownerAddress)
+    entries = populateEntries(entries, manager.address, tokenAddress, taskArgs.ownerAddress)
+    deployedEntries = populateEntries(deployedEntries, manager.address, tokenAddress, taskArgs.ownerAddress)
+
+    // Dry running
+    if (taskArgs.dryRun) {
+      await getDeployContractAddresses(entries, manager)
+      process.exit(0)
+    }
 
     // Filter out already deployed ones
     entries = entries.filter((entry) => !deployedEntries.find((deployedEntry) => deployedEntry.salt === entry.salt))
@@ -229,7 +242,7 @@ task('create-token-locks', 'Create token lock contracts from file')
     // Check if Manager is funded
     logger.log('')
     logger.info('Verifying balances...')
-    const grt = (await hre.ethers.getContractAt('ERC20', await manager.token())) as Erc20
+    const grt = (await hre.ethers.getContractAt('ERC20', tokenAddress)) as Erc20
     const totalAmount = getTotalAmount(entries)
     const currentBalance = await grt.balanceOf(manager.address)
     logger.log(`> Amount to distribute:  ${formatEther(totalAmount)} GRT`)
@@ -241,8 +254,8 @@ task('create-token-locks', 'Create token lock contracts from file')
     logger.success('Manager has enough tokens to fund contracts')
 
     // TODO: add a summary and confirmation to deploy
-    // TODO: support resuming
 
+    // Deploy
     for (const entry of entries) {
       logger.log('')
       logger.info(`Creating contract...`)
@@ -260,7 +273,7 @@ task('create-token-locks', 'Create token lock contracts from file')
         entry.revocable,
       )
       logger.log(`Transaction sent: ${tx.hash}`)
-      const receipt = await tx.wait()
+      const receipt = await tx.wait(1)
       logger.log(`Transaction mined: ${tx.hash}`)
       const event: Event = receipt.events[0]
       const contractAddress = event.args['proxy']
