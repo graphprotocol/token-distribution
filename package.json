@@ -8,6 +8,7 @@
     "build": "scripts/build",
     "clean": "rm -rf build/ cache/ dist/ && hardhat clean",
     "compile": "hardhat compile",
+    "deploy": "yarn run build && hardhat deploy",
     "test": "scripts/test",
     "test:gas": "RUN_EVM=true REPORT_GAS=true scripts/test",
     "test:coverage": "scripts/coverage",
