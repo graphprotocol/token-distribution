@@ -1,4 +1,4 @@
-import { task } from 'hardhat/config'
+import { extendEnvironment, task } from 'hardhat/config'
 
 // Plugins
 
@@ -51,6 +51,23 @@ function setupNetworkConfig(config) {
     }
   }
 }
+
+// Env
+
+extendEnvironment(async (hre) => {
+  const accounts = await hre.ethers.getSigners()
+  try {
+    const deployment = await hre.deployments.get('GraphTokenLockManager')
+    const contract = await hre.ethers.getContractAt('GraphTokenLockManager', deployment.address)
+    await contract.deployed() // test if deployed
+
+    hre['c'] = {
+      GraphTokenLockManager: contract.connect(accounts[0]),
+    }
+  } catch (err) {
+    // do not load the contract
+  }
+})
 
 // Tasks
 
