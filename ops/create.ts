@@ -35,6 +35,15 @@ interface TokenLockDeployEntry extends TokenLockConfigEntry {
   contractAddress: string
 }
 
+const askConfirm = async () => {
+  const res = await inquirer.prompt({
+    name: 'confirm',
+    type: 'confirm',
+    message: `Are you sure you want to proceed?`,
+  })
+  return res.confirm
+}
+
 const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
   const data = fs.readFileSync(__dirname + filepath, 'utf8')
   const entries = data.split('\n').map((e) => e.trim())
@@ -175,6 +184,24 @@ const populateEntries = (
   return results
 }
 
+const getTokenLockManagerOrFail = async (hre: HardhatRuntimeEnvironment) => {
+  const deployment = await hre.deployments.get('GraphTokenLockManager')
+  if (!deployment.address) {
+    logger.error('GraphTokenLockManager address not found')
+    process.exit(1)
+  }
+
+  const manager = (await hre.ethers.getContractAt('GraphTokenLockManager', deployment.address)) as GraphTokenLockManager
+  try {
+    await manager.deployed()
+  } catch (err) {
+    logger.error('GraphTokenLockManager not deployed at', manager.address)
+    process.exit(1)
+  }
+
+  return manager
+}
+
 task('create-token-locks', 'Create token lock contracts from file')
   .addParam('deployFile', 'File from where to read the deploy config')
   .addParam('resultFile', 'File where to save results')
@@ -182,22 +209,7 @@ task('create-token-locks', 'Create token lock contracts from file')
   .addOptionalParam('dryRun', 'Get the deterministic contract addresses but do not deploy', false, boolean)
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
     // Get contracts
-    const deployment = await hre.deployments.get('GraphTokenLockManager')
-    if (!deployment.address) {
-      logger.error('GraphTokenLockManager address not found')
-      process.exit(1)
-    }
-
-    const manager = (await hre.ethers.getContractAt(
-      'GraphTokenLockManager',
-      deployment.address,
-    )) as GraphTokenLockManager
-    try {
-      await manager.deployed()
-    } catch (err) {
-      logger.error('GraphTokenLockManager not deployed at', manager.address)
-      process.exit(1)
-    }
+    const manager = await getTokenLockManagerOrFail(hre)
 
     // Prepare
     logger.log(await prettyEnv(hre))
@@ -253,9 +265,14 @@ task('create-token-locks', 'Create token lock contracts from file')
     }
     logger.success('Manager has enough tokens to fund contracts')
 
-    // TODO: add a summary and confirmation to deploy
+    // Summary
+    if (!(await askConfirm())) {
+      logger.log('Cancelled')
+      process.exit(1)
+    }
 
     // Deploy
+    // TODO: send tx in batch
     for (const entry of entries) {
       logger.log('')
       logger.info(`Creating contract...`)
@@ -283,4 +300,50 @@ task('create-token-locks', 'Create token lock contracts from file')
       const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
       saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
     }
+  })
+
+task('manager-setup-auth', 'Setup default authorized functions in the manager')
+  .addParam('targetAddress', 'Target address for function calls')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    // Get contracts
+    const manager = await getTokenLockManagerOrFail(hre)
+
+    // Prepare
+    logger.log(await prettyEnv(hre))
+
+    // Validations
+    try {
+      getAddress(taskArgs.targetAddress)
+    } catch (err) {
+      logger.error(`Invalid target address ${taskArgs.targetAddress}`)
+      process.exit(1)
+    }
+
+    // Setup authorized functions
+    const signatures = [
+      'stake(uint256)',
+      'stakeTo(address,uint256)',
+      'unstake(uint256)',
+      'withdraw()',
+      'delegate(address,uint256)',
+      'undelegate(address,uint256)',
+      'withdrawDelegated(address,address)',
+      'setDelegationParameters(uint32 ,uint32,uint32)',
+      'setOperator(address,bool)',
+    ]
+    logger.info('Setup authorized functions...')
+    const targets = Array(signatures.length).fill(taskArgs.targetAddress)
+    const tx1 = await manager.setAuthFunctionCallMany(signatures, targets)
+    logger.log(`Transaction sent: ${tx1.hash}`)
+    await tx1.wait(1)
+    logger.log(`Transaction mined: ${tx1.hash}`)
+    logger.success('Done!\n')
+
+    // Setup authorized token destinations
+    logger.info('Setup authorized destinations...')
+    const tx2 = await manager.addTokenDestination(taskArgs.targetAddress)
+    logger.log(`Transaction sent: ${tx2.hash}`)
+    await tx2.wait(1)
+    logger.log(`Transaction mined: ${tx2.hash}`)
+    logger.success('Done!')
   })
