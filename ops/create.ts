@@ -1,7 +1,7 @@
 import fs from 'fs'
 import consola from 'consola'
 import inquirer from 'inquirer'
-import { utils, BigNumber, Event, providers } from 'ethers'
+import { utils, BigNumber, Event, providers, ContractTransaction, ContractReceipt } from 'ethers'
 
 import { task } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
@@ -202,6 +202,13 @@ const getTokenLockManagerOrFail = async (hre: HardhatRuntimeEnvironment) => {
   return manager
 }
 
+const waitTransaction = async (tx: ContractTransaction, confirmations = 1): Promise<ContractReceipt> => {
+  logger.log(`> Transaction sent: ${tx.hash}`)
+  const receipt = await tx.wait(confirmations)
+  receipt.status ? logger.success(`Transaction succeeded: ${tx.hash}`) : logger.warn(`Transaction failed: ${tx.hash}`)
+  return receipt
+}
+
 task('create-token-locks', 'Create token lock contracts from file')
   .addParam('deployFile', 'File from where to read the deploy config')
   .addParam('resultFile', 'File where to save results')
@@ -289,9 +296,7 @@ task('create-token-locks', 'Create token lock contracts from file')
         entry.releaseStartTime,
         entry.revocable,
       )
-      logger.log(`Transaction sent: ${tx.hash}`)
-      const receipt = await tx.wait(1)
-      logger.log(`Transaction mined: ${tx.hash}`)
+      const receipt = await waitTransaction(tx)
       const event: Event = receipt.events[0]
       const contractAddress = event.args['proxy']
       logger.success('Deployed:', contractAddress)
@@ -334,16 +339,11 @@ task('manager-setup-auth', 'Setup default authorized functions in the manager')
     logger.info('Setup authorized functions...')
     const targets = Array(signatures.length).fill(taskArgs.targetAddress)
     const tx1 = await manager.setAuthFunctionCallMany(signatures, targets)
-    logger.log(`Transaction sent: ${tx1.hash}`)
-    await tx1.wait(1)
-    logger.log(`Transaction mined: ${tx1.hash}`)
+    await waitTransaction(tx1)
     logger.success('Done!\n')
 
     // Setup authorized token destinations
     logger.info('Setup authorized destinations...')
     const tx2 = await manager.addTokenDestination(taskArgs.targetAddress)
-    logger.log(`Transaction sent: ${tx2.hash}`)
-    await tx2.wait(1)
-    logger.log(`Transaction mined: ${tx2.hash}`)
-    logger.success('Done!')
+    await waitTransaction(tx2)
   })
