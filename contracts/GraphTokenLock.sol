@@ -63,7 +63,6 @@ contract GraphTokenLock is Ownable {
     event TokensReleased(address indexed beneficiary, uint256 amount);
     event TokensWithdrawn(address indexed beneficiary, uint256 amount);
     event TokensRevoked(address indexed beneficiary, uint256 amount);
-    event BeneficiaryChanged(address newBeneficiary);
 
     /**
      * @dev Only allow calls from the beneficiary of the contract
@@ -118,17 +117,6 @@ contract GraphTokenLock is Ownable {
 
         releaseStartTime = _releaseStartTime;
         revocable = _revocable;
-    }
-
-    /**
-     * @notice Change the beneficiary of funds managed by the contract
-     * @dev Can only be called by the beneficiary
-     * @param _newBeneficiary Address of the new beneficiary address
-     */
-    function changeBeneficiary(address _newBeneficiary) external onlyBeneficiary {
-        require(_newBeneficiary != address(0), "Empty beneficiary");
-        beneficiary = _newBeneficiary;
-        emit BeneficiaryChanged(_newBeneficiary);
     }
 
     // -- Balances --

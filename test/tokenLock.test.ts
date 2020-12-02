@@ -396,28 +396,6 @@ describe('GraphTokenLock', () => {
         })
       })
 
-      describe('Beneficiary admin', function () {
-        describe('changeBeneficiary()', function () {
-          it('should change beneficiary', async function () {
-            const tx = tokenLock.connect(beneficiary1.signer).changeBeneficiary(beneficiary2.address)
-            await expect(tx).emit(tokenLock, 'BeneficiaryChanged').withArgs(beneficiary2.address)
-
-            const afterBeneficiary = await tokenLock.beneficiary()
-            expect(afterBeneficiary).eq(beneficiary2.address)
-          })
-
-          it('reject if beneficiary is zero', async function () {
-            const tx = tokenLock.connect(beneficiary1.signer).changeBeneficiary(AddressZero)
-            await expect(tx).revertedWith('Empty beneficiary')
-          })
-
-          it('reject if not authorized', async function () {
-            const tx = tokenLock.connect(deployer.signer).changeBeneficiary(beneficiary2.address)
-            await expect(tx).revertedWith('!auth')
-          })
-        })
-      })
-
       describe('Value transfer', function () {
         async function getState(tokenLock: GraphTokenLock) {
           const beneficiaryAddress = await tokenLock.beneficiary()
