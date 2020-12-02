@@ -1,15 +1,11 @@
 import fs from 'fs'
 import consola from 'consola'
 import inquirer from 'inquirer'
-import { utils, BigNumber, Event, providers, ContractTransaction, ContractReceipt } from 'ethers'
+import { utils, BigNumber, Event, ContractTransaction, ContractReceipt, Contract, ContractFactory } from 'ethers'
 
 import { task } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { boolean } from 'hardhat/internal/core/params/argumentTypes'
-
-import { Erc20 } from '../build/typechain/contracts/Erc20'
-import { GraphTokenLockWalletFactory } from '../build/typechain/contracts/GraphTokenLockWalletFactory'
-import { GraphTokenLockManager } from '../build/typechain/contracts/GraphTokenLockManager'
 
 const { getAddress, keccak256, formatEther, parseEther } = utils
 
@@ -117,7 +113,7 @@ const prettyConfigEntry = (config: TokenLockConfigEntry) => {
     Ends: ${config.endTime} (${prettyDate(config.endTime)})
     Periods: ${config.periods}
     Revocable: ${config.revocable}
-    Release: ${config.releaseStartTime} (${prettyDate(config.releaseStartTime)})
+    ReleaseCliff: ${config.releaseStartTime} (${prettyDate(config.releaseStartTime)})
   `
 }
 
@@ -139,8 +135,14 @@ const prettyEnv = async (hre: HardhatRuntimeEnvironment) => {
   `
 }
 
-const calculateSalt = (entry: TokenLockConfigEntry, managerAddress: string, tokenAddress: string) => {
-  const factory = new GraphTokenLockWalletFactory()
+const calculateSalt = async (
+  hre: HardhatRuntimeEnvironment,
+  entry: TokenLockConfigEntry,
+  managerAddress: string,
+  tokenAddress: string,
+) => {
+  const factory = await getContractFactory(hre, 'GraphTokenLockWallet')
+
   return keccak256(
     factory.interface.encodeFunctionData(
       'initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,bool)',
@@ -160,7 +162,12 @@ const calculateSalt = (entry: TokenLockConfigEntry, managerAddress: string, toke
   )
 }
 
-const getDeployContractAddresses = async (entries: TokenLockConfigEntry[], manager: GraphTokenLockManager) => {
+const getContractFactory = async (hre: HardhatRuntimeEnvironment, name: string) => {
+  const artifact = await hre.deployments.getArtifact(name)
+  return new ContractFactory(artifact.abi, artifact.bytecode)
+}
+
+const getDeployContractAddresses = async (entries: TokenLockConfigEntry[], manager: Contract) => {
   const masterCopy = await manager.masterCopy()
   for (const entry of entries) {
     const contractAddress = await manager.getDeploymentAddress(entry.salt, masterCopy)
@@ -169,7 +176,8 @@ const getDeployContractAddresses = async (entries: TokenLockConfigEntry[], manag
   }
 }
 
-const populateEntries = (
+const populateEntries = async (
+  hre: HardhatRuntimeEnvironment,
   entries: TokenLockConfigEntry[],
   managerAddress: string,
   tokenAddress: string,
@@ -178,7 +186,7 @@ const populateEntries = (
   const results = []
   for (const entry of entries) {
     entry.owner = ownerAddress
-    entry.salt = calculateSalt(entry, managerAddress, tokenAddress)
+    entry.salt = await calculateSalt(hre, entry, managerAddress, tokenAddress)
     results.push(entry)
   }
   return results
@@ -191,7 +199,7 @@ const getTokenLockManagerOrFail = async (hre: HardhatRuntimeEnvironment) => {
     process.exit(1)
   }
 
-  const manager = (await hre.ethers.getContractAt('GraphTokenLockManager', deployment.address)) as GraphTokenLockManager
+  const manager = await hre.ethers.getContractAt('GraphTokenLockManager', deployment.address)
   try {
     await manager.deployed()
   } catch (err) {
@@ -241,8 +249,8 @@ task('create-token-locks', 'Create token lock contracts from file')
     let deployedEntries = loadDeployData('/' + taskArgs.resultFile)
 
     // Populate entries
-    entries = populateEntries(entries, manager.address, tokenAddress, taskArgs.ownerAddress)
-    deployedEntries = populateEntries(deployedEntries, manager.address, tokenAddress, taskArgs.ownerAddress)
+    entries = await populateEntries(hre, entries, manager.address, tokenAddress, taskArgs.ownerAddress)
+    deployedEntries = await populateEntries(hre, deployedEntries, manager.address, tokenAddress, taskArgs.ownerAddress)
 
     // Dry running
     if (taskArgs.dryRun) {
@@ -261,7 +269,7 @@ task('create-token-locks', 'Create token lock contracts from file')
     // Check if Manager is funded
     logger.log('')
     logger.info('Verifying balances...')
-    const grt = (await hre.ethers.getContractAt('ERC20', tokenAddress)) as Erc20
+    const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
     const totalAmount = getTotalAmount(entries)
     const currentBalance = await grt.balanceOf(manager.address)
     logger.log(`> Amount to distribute:  ${formatEther(totalAmount)} GRT`)
