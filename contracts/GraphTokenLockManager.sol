@@ -48,7 +48,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
         uint256 endTime,
         uint256 periods,
         uint256 releaseStartTime,
-        bool revocable
+        IGraphTokenLock.Revocability revocable
     );
 
     event TokensDeposited(address indexed sender, uint256 amount);
@@ -99,11 +99,11 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
-        bool _revocable
+        IGraphTokenLock.Revocability _revocable
     ) external override onlyOwner {
         // Create contract using a minimal proxy and call initializer
         bytes memory initializer = abi.encodeWithSignature(
-            "initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,bool)",
+            "initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,uint8)",
             address(this),
             _owner,
             _beneficiary,

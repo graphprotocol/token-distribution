@@ -50,7 +50,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
         uint256,
         uint256,
         uint256,
-        bool
+        Revocability
     ) public override {
         revert("Must initialize with a manager parameter");
     }
@@ -66,7 +66,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
-        bool _revocable
+        Revocability _revocable
     ) external {
         super.initialize(
             _owner,

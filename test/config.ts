@@ -2,11 +2,17 @@ import { BigNumber, Contract } from 'ethers'
 
 import { Account } from './network'
 
+export enum Revocability {
+  NotSet,
+  Enabled,
+  Disabled,
+}
+
 export interface TokenLockSchedule {
   startTime: number
   endTime: number
   periods: number
-  revocable: boolean
+  revocable: Revocability
   releaseStartTime: number
 }
 export interface TokenLockParameters {
@@ -17,7 +23,7 @@ export interface TokenLockParameters {
   startTime: number
   endTime: number
   periods: number
-  revocable: boolean
+  revocable: Revocability
   releaseStartTime: number
 }
 
@@ -48,7 +54,7 @@ const createSchedule = (
   startMonths: number,
   durationMonths: number,
   periods: number,
-  revocable: boolean,
+  revocable: Revocability,
   releaseStartTime = 0,
 ) => {
   return {
@@ -61,11 +67,11 @@ const createSchedule = (
 
 export const createScheduleScenarios = (): Array<TokenLockSchedule> => {
   return [
-    createSchedule(0, 6, 1, false), // 6m lock-up + full release + fully vested
-    createSchedule(0, 12, 1, false), // 12m lock-up + full release  + fully vested
-    createSchedule(12, 12, 12, false), // 12m lock-up + 1/12 releases  + fully vested
-    createSchedule(0, 12, 12, false), // no-lockup + 1/12 releases  + fully vested
-    createSchedule(-12, 48, 48, true), // 1/48 releases + vested + past start + start time override
+    createSchedule(0, 6, 1, Revocability.Disabled), // 6m lock-up + full release + fully vested
+    createSchedule(0, 12, 1, Revocability.Disabled), // 12m lock-up + full release  + fully vested
+    createSchedule(12, 12, 12, Revocability.Disabled), // 12m lock-up + 1/12 releases  + fully vested
+    createSchedule(0, 12, 12, Revocability.Disabled), // no-lockup + 1/12 releases  + fully vested
+    createSchedule(-12, 48, 48, Revocability.Enabled), // 1/48 releases + vested + past start + start time override
   ]
 }
 
@@ -83,7 +89,7 @@ export const defaultInitArgs = (
   }
 
   return {
-    ...createSchedule(0, 6, 1, false),
+    ...createSchedule(0, 6, 1, Revocability.Disabled),
     ...constantData,
   }
 }

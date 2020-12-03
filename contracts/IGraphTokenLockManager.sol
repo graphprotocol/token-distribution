@@ -5,6 +5,8 @@ pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import "./IGraphTokenLock.sol";
+
 interface IGraphTokenLockManager {
     // -- Factory --
 
@@ -18,7 +20,7 @@ interface IGraphTokenLockManager {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
-        bool _revocable
+        IGraphTokenLock.Revocability _revocable
     ) external;
 
     // -- Funds Management --
