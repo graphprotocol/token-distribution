@@ -105,12 +105,18 @@ describe('GraphTokenLockWallet', () => {
     tokenLock = await initWithArgs(initArgs)
   })
 
-  // describe('init', function () {
-  //   it('reject re-initialization', async function () {
-  //     const tx = initWithArgs(initArgs)
-  //     await expect(tx).revertedWith('Already initialized')
-  //   })
-  // })
+  describe('Init', function () {
+    it('should bubble up revert reasons on create', async function () {
+      initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
+      const tx = initWithArgs({ ...initArgs, endTime: 0 })
+      await expect(tx).revertedWith('Start time > end time')
+    })
+
+    // it('reject re-initialization', async function () {
+    //   const tx = initWithArgs(initArgs)
+    //   await expect(tx).revertedWith('Already initialized')
+    // })
+  })
 
   describe('admin', function () {
     it('should set manager', async function () {
@@ -183,6 +189,12 @@ describe('GraphTokenLockWallet', () => {
       // After state
       const afterLockBalance = await grt.balanceOf(lockAsStaking.address)
       expect(afterLockBalance).eq(beforeLockBalance.sub(stakeAmount))
+    })
+
+    it('should bubble up revert reasons for forwarded calls', async function () {
+      // Force a failing call
+      const tx = lockAsStaking.connect(beneficiary.signer).stake(toGRT('0'))
+      await expect(tx).revertedWith('!tokens')
     })
 
     it('reject a function call from other than the beneficiary', async function () {

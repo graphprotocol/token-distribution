@@ -2,6 +2,7 @@
 
 pragma solidity ^0.7.3;
 
+import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
@@ -26,23 +27,23 @@ contract MinimalProxyFactory is Ownable {
      * Deploy a MinimalProxy with CREATE
      * @param _implementation Address of the proxy target implementation
      * @param _data Bytes with the initializer call
-     * @return proxy Address of the deployed MinimalProxy
+     * @return proxyAddress Address of the deployed MinimalProxy
      */
-    function _deployProxy(address _implementation, bytes memory _data) internal returns (address proxy) {
+    function _deployProxy(address _implementation, bytes memory _data) internal returns (address proxyAddress) {
         bytes20 targetBytes = bytes20(_implementation);
         assembly {
             let clone := mload(0x40)
             mstore(clone, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
             mstore(add(clone, 0x14), targetBytes)
             mstore(add(clone, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
-            proxy := create(0, clone, 0x37)
+            proxyAddress := create(0, clone, 0x37)
         }
 
-        emit ProxyCreated(address(proxy));
+        emit ProxyCreated(proxyAddress);
 
+        // Call function with data
         if (_data.length > 0) {
-            (bool success, ) = proxy.call(_data);
-            require(success, "MinimalProxyFactory#create: CALL_FAILED");
+            Address.functionCall(proxyAddress, _data);
         }
     }
 
@@ -62,9 +63,9 @@ contract MinimalProxyFactory is Ownable {
 
         emit ProxyCreated(proxyAddress);
 
+        // Call function with data
         if (_data.length > 0) {
-            (bool success, ) = proxyAddress.call(_data);
-            require(success, "MinimalProxyFactory#create2: CALL_FAILED");
+            Address.functionCall(proxyAddress, _data);
         }
 
         return proxyAddress;
