@@ -1,15 +1,13 @@
 import { expect } from 'chai'
 import { BigNumber } from 'ethers'
-import { deployments, ethers } from 'hardhat'
+import { deployments } from 'hardhat'
 import 'hardhat-deploy'
 
 import { GraphTokenMock } from '../build/typechain/contracts/GraphTokenMock'
 import { GraphTokenLock } from '../build/typechain/contracts/GraphTokenLock'
 
-import { createScheduleScenarios, TokenLockParameters } from './config'
+import { createScheduleScenarios, defaultInitArgs, TokenLockParameters, Revocability } from './config'
 import { advanceTimeAndBlock, getAccounts, getContract, toBN, toGRT, Account } from './network'
-
-const { AddressZero } = ethers.constants
 
 // Fixture
 const setupTest = deployments.createFixture(async ({ deployments }) => {
@@ -125,6 +123,28 @@ describe('GraphTokenLock', () => {
 
   before(async function () {
     ;[deployer, beneficiary1, beneficiary2] = await getAccounts()
+  })
+
+  describe('Init', async function () {
+    it('Reject initialize with non-set revocability option', async function () {
+      ;({ grt, tokenLock } = await setupTest())
+
+      const args = defaultInitArgs(deployer, beneficiary1, grt, toGRT('1000'))
+      const tx = tokenLock
+        .connect(deployer.signer)
+        .initialize(
+          args.owner,
+          args.beneficiary,
+          args.token,
+          args.managedAmount,
+          args.startTime,
+          args.endTime,
+          args.periods,
+          0,
+          Revocability.NotSet,
+        )
+      await expect(tx).revertedWith('Must set a revocability option')
+    })
   })
 
   createScheduleScenarios().forEach(async function (schedule) {
@@ -273,16 +293,16 @@ describe('GraphTokenLock', () => {
 
         describe('vestedAmount()', function () {
           it('should be fully vested if non-revocable', async function () {
-            const isRevocable = await tokenLock.revocable()
+            const revocable = await tokenLock.revocable()
             const vestedAmount = await tokenLock.vestedAmount()
-            if (!isRevocable) {
+            if (revocable == Revocability.Disabled) {
               expect(vestedAmount).eq(await tokenLock.managedAmount())
             }
           })
 
           it('should match the vesting schedule if revocable', async function () {
-            const isRevocable = await tokenLock.revocable()
-            if (isRevocable) {
+            const revocable = await tokenLock.revocable()
+            if (revocable == Revocability.Enabled) {
               await shouldMatchSchedule(tokenLock, 'vestedAmount', initArgs)
             }
           })
@@ -506,7 +526,7 @@ describe('GraphTokenLock', () => {
           })
 
           it('should revoke and get funds back to owner', async function () {
-            if (initArgs.revocable) {
+            if (initArgs.revocable == Revocability.Enabled) {
               // Before state
               const before = await getState(tokenLock)
 
@@ -525,7 +545,7 @@ describe('GraphTokenLock', () => {
           })
 
           it('reject revoke multiple times', async function () {
-            if (initArgs.revocable) {
+            if (initArgs.revocable == Revocability.Enabled) {
               await tokenLock.connect(deployer.signer).revoke()
               const tx = tokenLock.connect(deployer.signer).revoke()
               await expect(tx).revertedWith('Already revoked')
@@ -538,14 +558,14 @@ describe('GraphTokenLock', () => {
           })
 
           it('reject revoke if not revocable', async function () {
-            if (!initArgs.revocable) {
+            if (initArgs.revocable == Revocability.Disabled) {
               const tx = tokenLock.connect(deployer.signer).revoke()
               await expect(tx).revertedWith('Contract is non-revocable')
             }
           })
 
           it('reject revoke if no available unvested amount', async function () {
-            if (initArgs.revocable) {
+            if (initArgs.revocable == Revocability.Enabled) {
               // Setup
               await advanceToEnd(tokenLock)
 

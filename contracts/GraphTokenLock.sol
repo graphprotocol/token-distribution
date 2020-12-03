@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./Ownable.sol";
 import "./MathUtils.sol";
+import "./IGraphTokenLock.sol";
 
 /**
  * @title GraphTokenLock
@@ -26,7 +27,7 @@ import "./MathUtils.sol";
  * perform the first release on the configured time. After that it will continue with the
  * default schedule.
  */
-contract GraphTokenLock is Ownable {
+contract GraphTokenLock is Ownable, IGraphTokenLock {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -50,7 +51,7 @@ contract GraphTokenLock is Ownable {
     // If set, no tokens will be released before releaseStartTime ignoring
     // the amount to release each period
     uint256 public releaseStartTime;
-    bool public revocable; // Whether to use vesting for locked funds
+    Revocability public revocable; // Whether to use vesting for locked funds
 
     // State
 
@@ -92,8 +93,8 @@ contract GraphTokenLock is Ownable {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
-        bool _revocable
-    ) public virtual {
+        Revocability _revocable
+    ) public virtual override {
         require(!isInitialized, "Already initialized");
         require(_owner != address(0), "Owner cannot be zero");
         require(_beneficiary != address(0), "Beneficiary cannot be zero");
@@ -102,6 +103,7 @@ contract GraphTokenLock is Ownable {
         require(_startTime < _endTime, "Start time > end time");
         require(_managedAmount > 0, "Managed tokens cannot be zero");
         require(_periods >= MIN_PERIOD, "Periods cannot be below minimum");
+        require(_revocable != Revocability.NotSet, "Must set a revocability option");
 
         isInitialized = true;
 
@@ -125,7 +127,7 @@ contract GraphTokenLock is Ownable {
      * @notice Returns the amount of tokens currently held by the contract
      * @return Tokens held in the contract
      */
-    function currentBalance() public view returns (uint256) {
+    function currentBalance() public override view returns (uint256) {
         return token.balanceOf(address(this));
     }
 
@@ -135,7 +137,7 @@ contract GraphTokenLock is Ownable {
      * @notice Returns the current block timestamp
      * @return Current block timestamp
      */
-    function currentTime() public view returns (uint256) {
+    function currentTime() public override view returns (uint256) {
         return block.timestamp;
     }
 
@@ -143,7 +145,7 @@ contract GraphTokenLock is Ownable {
      * @notice Gets duration of contract from start to end in seconds
      * @return Amount of seconds from contract startTime to endTime
      */
-    function duration() public view returns (uint256) {
+    function duration() public override view returns (uint256) {
         return endTime.sub(startTime);
     }
 
@@ -152,7 +154,7 @@ contract GraphTokenLock is Ownable {
      * @dev Returns zero if called before conctract starTime
      * @return Seconds elapsed from contract startTime
      */
-    function sinceStartTime() public view returns (uint256) {
+    function sinceStartTime() public override view returns (uint256) {
         uint256 current = currentTime();
         if (current <= startTime) {
             return 0;
@@ -164,7 +166,7 @@ contract GraphTokenLock is Ownable {
      * @notice Returns amount available to be released after each period according to schedule
      * @return Amount of tokens available after each period
      */
-    function amountPerPeriod() public view returns (uint256) {
+    function amountPerPeriod() public override view returns (uint256) {
         return managedAmount.div(periods);
     }
 
@@ -172,7 +174,7 @@ contract GraphTokenLock is Ownable {
      * @notice Returns the duration of each period in seconds
      * @return Duration of each period in seconds
      */
-    function periodDuration() public view returns (uint256) {
+    function periodDuration() public override view returns (uint256) {
         return duration().div(periods);
     }
 
@@ -180,7 +182,7 @@ contract GraphTokenLock is Ownable {
      * @notice Gets the current period based on the schedule
      * @return A number that represents the current period
      */
-    function currentPeriod() public view returns (uint256) {
+    function currentPeriod() public override view returns (uint256) {
         return sinceStartTime().div(periodDuration()).add(MIN_PERIOD);
     }
 
@@ -188,7 +190,7 @@ contract GraphTokenLock is Ownable {
      * @notice Gets the number of periods that passed since the first period
      * @return A number of periods that passed since the schedule started
      */
-    function passedPeriods() public view returns (uint256) {
+    function passedPeriods() public override view returns (uint256) {
         return currentPeriod().sub(MIN_PERIOD);
     }
 
@@ -199,7 +201,7 @@ contract GraphTokenLock is Ownable {
      * @dev Implements the step-by-step schedule based on periods for available tokens
      * @return Amount of tokens available according to the schedule
      */
-    function availableAmount() public view returns (uint256) {
+    function availableAmount() public override view returns (uint256) {
         uint256 current = currentTime();
 
         // Before contract start no funds are available
@@ -221,9 +223,9 @@ contract GraphTokenLock is Ownable {
      * @dev Similar to available amount, but is fully vested when contract is non-revocable
      * @return Amount of tokens already vested
      */
-    function vestedAmount() public view returns (uint256) {
+    function vestedAmount() public override view returns (uint256) {
         // If non-revocable it is fully vested
-        if (revocable == false) {
+        if (revocable == Revocability.Disabled) {
             return managedAmount;
         }
 
@@ -235,7 +237,7 @@ contract GraphTokenLock is Ownable {
      * @dev Considers the schedule and takes into account already released tokens
      * @return Amount of tokens ready to be released
      */
-    function releasableAmount() public view returns (uint256) {
+    function releasableAmount() public override view returns (uint256) {
         // If a release start time is set no tokens are available before this date
         // If not set it follows the default schedule and tokens are available on
         // the first period passed
@@ -253,7 +255,7 @@ contract GraphTokenLock is Ownable {
      * @dev Does not consider schedule but just global amounts tracked
      * @return Amount of tokens yet to be released
      */
-    function totalOutstandingAmount() public view returns (uint256) {
+    function totalOutstandingAmount() public override view returns (uint256) {
         return managedAmount.sub(releasedAmount);
     }
 
@@ -262,7 +264,7 @@ contract GraphTokenLock is Ownable {
      * @dev All funds over outstanding amount is considered surplus that can be withdrawn by beneficiary
      * @return Amount of tokens considered as surplus
      */
-    function surplusAmount() public view returns (uint256) {
+    function surplusAmount() public override view returns (uint256) {
         uint256 balance = currentBalance();
         uint256 outstandingAmount = totalOutstandingAmount();
         if (balance > outstandingAmount) {
@@ -277,7 +279,7 @@ contract GraphTokenLock is Ownable {
      * @notice Releases tokens based on the configured schedule
      * @dev All available releasable tokens are transferred to beneficiary
      */
-    function release() external onlyBeneficiary {
+    function release() external override onlyBeneficiary {
         uint256 amountToRelease = releasableAmount();
         require(amountToRelease > 0, "No available releasable amount");
 
@@ -293,7 +295,7 @@ contract GraphTokenLock is Ownable {
      * @dev Tokens in the contract over outstanding amount are considered as surplus
      * @param _amount Amount of tokens to withdraw
      */
-    function withdrawSurplus(uint256 _amount) external onlyBeneficiary {
+    function withdrawSurplus(uint256 _amount) external override onlyBeneficiary {
         require(_amount > 0, "Amount cannot be zero");
         require(surplusAmount() >= _amount, "Amount requested > surplus available");
 
@@ -306,8 +308,8 @@ contract GraphTokenLock is Ownable {
      * @notice Revokes a vesting schedule and return the unvested tokens to the owner
      * @dev Vesting schedule is always calculated based on managed tokens
      */
-    function revoke() external onlyOwner {
-        require(revocable == true, "Contract is non-revocable");
+    function revoke() external override onlyOwner {
+        require(revocable == Revocability.Enabled, "Contract is non-revocable");
         require(isRevoked == false, "Already revoked");
 
         uint256 unvestedAmount = managedAmount.sub(vestedAmount());
