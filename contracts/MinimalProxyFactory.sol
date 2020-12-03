@@ -57,7 +57,7 @@ contract MinimalProxyFactory is Ownable {
         bytes32 _salt,
         address _implementation,
         bytes memory _data
-    ) public returns (address) {
+    ) internal returns (address) {
         address proxyAddress = Create2.deploy(0, _salt, _getContractCreationCode(_implementation));
 
         emit ProxyCreated(proxyAddress);
