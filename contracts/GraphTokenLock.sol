@@ -27,7 +27,7 @@ import "./IGraphTokenLock.sol";
  * perform the first release on the configured time. After that it will continue with the
  * default schedule.
  */
-contract GraphTokenLock is Ownable, IGraphTokenLock {
+abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -84,7 +84,7 @@ contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @param _releaseStartTime Override time for when the releases start
      * @param _revocable Whether the contract is revocable
      */
-    function initialize(
+    function _initialize(
         address _owner,
         address _beneficiary,
         address _token,
@@ -94,7 +94,7 @@ contract GraphTokenLock is Ownable, IGraphTokenLock {
         uint256 _periods,
         uint256 _releaseStartTime,
         Revocability _revocable
-    ) public virtual override {
+    ) internal {
         require(!isInitialized, "Already initialized");
         require(_owner != address(0), "Owner cannot be zero");
         require(_beneficiary != address(0), "Beneficiary cannot be zero");
