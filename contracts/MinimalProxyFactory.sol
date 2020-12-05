@@ -24,30 +24,6 @@ contract MinimalProxyFactory is Ownable {
     }
 
     /**
-     * Deploy a MinimalProxy with CREATE
-     * @param _implementation Address of the proxy target implementation
-     * @param _data Bytes with the initializer call
-     * @return proxyAddress Address of the deployed MinimalProxy
-     */
-    function _deployProxy(address _implementation, bytes memory _data) internal returns (address proxyAddress) {
-        bytes20 targetBytes = bytes20(_implementation);
-        assembly {
-            let clone := mload(0x40)
-            mstore(clone, 0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000)
-            mstore(add(clone, 0x14), targetBytes)
-            mstore(add(clone, 0x28), 0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000)
-            proxyAddress := create(0, clone, 0x37)
-        }
-
-        emit ProxyCreated(proxyAddress);
-
-        // Call function with data
-        if (_data.length > 0) {
-            Address.functionCall(proxyAddress, _data);
-        }
-    }
-
-    /**
      * @notice Deploys a MinimalProxy with CREATE2
      * @param _salt Bytes32 salt to use for CREATE2
      * @param _implementation Address of the proxy target implementation
