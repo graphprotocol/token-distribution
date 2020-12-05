@@ -4,7 +4,7 @@ import { deployments } from 'hardhat'
 import 'hardhat-deploy'
 
 import { GraphTokenMock } from '../build/typechain/contracts/GraphTokenMock'
-import { GraphTokenLock } from '../build/typechain/contracts/GraphTokenLock'
+import { GraphTokenLockSimple } from '../build/typechain/contracts/GraphTokenLockSimple'
 
 import { createScheduleScenarios, defaultInitArgs, TokenLockParameters, Revocability } from './config'
 import { advanceTimeAndBlock, getAccounts, getContract, toBN, toGRT, Account } from './network'
@@ -22,47 +22,47 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   const grt = await getContract('GraphTokenMock')
 
   // Deploy token lock
-  await deploy('GraphTokenLock', {
+  await deploy('GraphTokenLockSimple', {
     from: deployer.address,
     args: [],
   })
-  const tokenLock = await getContract('GraphTokenLock')
+  const tokenLock = await getContract('GraphTokenLockSimple')
 
   return {
     grt: grt as GraphTokenMock,
-    tokenLock: tokenLock as GraphTokenLock,
+    tokenLock: tokenLock as GraphTokenLockSimple,
   }
 })
 
 // -- Time utils --
 
-const advancePeriods = async (tokenLock: GraphTokenLock, n = 1) => {
+const advancePeriods = async (tokenLock: GraphTokenLockSimple, n = 1) => {
   const periodDuration = await tokenLock.periodDuration()
   return advanceTimeAndBlock(periodDuration.mul(n).toNumber()) // advance one period
 }
 
-const advanceToAboutStart = async (tokenLock: GraphTokenLock) => {
+const advanceToAboutStart = async (tokenLock: GraphTokenLockSimple) => {
   // 60 second buffer to accommodate precision error
   const target = (await tokenLock.startTime()).sub(60)
   const delta = target.sub(await tokenLock.currentTime())
   return advanceTimeAndBlock(delta.toNumber())
 }
 
-const advanceToStart = async (tokenLock: GraphTokenLock) => {
+const advanceToStart = async (tokenLock: GraphTokenLockSimple) => {
   // 60 second buffer to accommodate precision error
   const target = (await tokenLock.startTime()).add(60)
   const delta = target.sub(await tokenLock.currentTime())
   return advanceTimeAndBlock(delta.toNumber())
 }
 
-const advanceToEnd = async (tokenLock: GraphTokenLock) => {
+const advanceToEnd = async (tokenLock: GraphTokenLockSimple) => {
   // 60 second buffer to accommodate precision error
   const target = (await tokenLock.endTime()).add(60)
   const delta = target.sub(await tokenLock.currentTime())
   return advanceTimeAndBlock(delta.toNumber())
 }
 
-const forEachPeriod = async (tokenLock: GraphTokenLock, fn) => {
+const forEachPeriod = async (tokenLock: GraphTokenLockSimple, fn) => {
   await advanceToStart(tokenLock)
 
   const periods = (await tokenLock.periods()).toNumber()
@@ -74,7 +74,7 @@ const forEachPeriod = async (tokenLock: GraphTokenLock, fn) => {
   }
 }
 
-const shouldMatchSchedule = async (tokenLock: GraphTokenLock, fnName: string, initArgs: TokenLockParameters) => {
+const shouldMatchSchedule = async (tokenLock: GraphTokenLockSimple, fnName: string, initArgs: TokenLockParameters) => {
   await forEachPeriod(tokenLock, async function (passedPeriods: BigNumber) {
     const amount = (await tokenLock.functions[fnName]())[0]
     const amountPerPeriod = await tokenLock.amountPerPeriod()
@@ -90,13 +90,13 @@ const shouldMatchSchedule = async (tokenLock: GraphTokenLock, fnName: string, in
 
 // -- Tests --
 
-describe('GraphTokenLock', () => {
+describe('GraphTokenLockSimple', () => {
   let deployer: Account
   let beneficiary1: Account
   let beneficiary2: Account
 
   let grt: GraphTokenMock
-  let tokenLock: GraphTokenLock
+  let tokenLock: GraphTokenLockSimple
 
   let initArgs: TokenLockParameters
 
@@ -116,7 +116,7 @@ describe('GraphTokenLock', () => {
       )
   }
 
-  const fundContract = async (contract: GraphTokenLock) => {
+  const fundContract = async (contract: GraphTokenLockSimple) => {
     const managedAmount = await contract.managedAmount()
     await grt.connect(deployer.signer).transfer(contract.address, managedAmount)
   }
@@ -417,7 +417,7 @@ describe('GraphTokenLock', () => {
       })
 
       describe('Value transfer', function () {
-        async function getState(tokenLock: GraphTokenLock) {
+        async function getState(tokenLock: GraphTokenLockSimple) {
           const beneficiaryAddress = await tokenLock.beneficiary()
           const ownerAddress = await tokenLock.owner()
           return {

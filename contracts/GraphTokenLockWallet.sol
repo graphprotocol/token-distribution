@@ -40,21 +40,6 @@ contract GraphTokenLockWallet is GraphTokenLock {
 
     event ManagerUpdated(address indexed _oldManager, address indexed _newManager);
 
-    // Disabled default initializer inherited from GraphTokenLock
-    function initialize(
-        address,
-        address,
-        address,
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        uint256,
-        Revocability
-    ) public override {
-        revert("Must initialize with a manager parameter");
-    }
-
     // Initializer
     function initialize(
         address _manager,
@@ -68,7 +53,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
         uint256 _releaseStartTime,
         Revocability _revocable
     ) external {
-        super.initialize(
+        _initialize(
             _owner,
             _beneficiary,
             _token,
