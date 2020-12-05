@@ -37,7 +37,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
 
     // -- Events --
 
-    event MasterCopyUpdated(address masterCopy);
+    event MasterCopyUpdated(address indexed masterCopy);
     event TokenLockCreated(
         address indexed contractAddress,
         bytes32 indexed initHash,

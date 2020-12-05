@@ -10,7 +10,7 @@ import "@openzeppelin/contracts/utils/Create2.sol";
 contract MinimalProxyFactory is Ownable {
     // -- Events --
 
-    event ProxyCreated(address proxy);
+    event ProxyCreated(address indexed proxy);
 
     /**
      * @notice Gets the deterministic CREATE2 address for MinimalProxy with a particular implementation
