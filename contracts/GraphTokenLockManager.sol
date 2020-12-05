@@ -101,6 +101,8 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
         uint256 _releaseStartTime,
         bool _revocable
     ) external override onlyOwner {
+        require(_token.balanceOf(address(this)) >= _managedAmount, "Not enough tokens to create lock");
+
         // Create contract using a minimal proxy and call initializer
         bytes memory initializer = abi.encodeWithSignature(
             "initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,bool)",
