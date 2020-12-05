@@ -1,4 +1,4 @@
-import { constants } from 'ethers'
+import { constants, Wallet } from 'ethers'
 import { expect } from 'chai'
 import { deployments, ethers } from 'hardhat'
 
@@ -118,7 +118,44 @@ describe('GraphTokenLockWallet', () => {
     // })
   })
 
-  describe('admin', function () {
+  describe('TokenLockManager', function () {
+    it('revert if init with empty token', async function () {
+      const { deploy } = deployments
+
+      const d = deploy('GraphTokenLockManager', {
+        from: deployer.address,
+        args: [AddressZero, Wallet.createRandom().address],
+      })
+      await expect(d).revertedWith('Token cannot be zero')
+    })
+
+    it('should set the master copy', async function () {
+      const address = Wallet.createRandom().address
+      const tx = tokenLockManager.setMasterCopy(address)
+      await expect(tx).emit(tokenLockManager, 'MasterCopyUpdated').withArgs(address)
+    })
+
+    it('revert set the master copy to zero address', async function () {
+      const tx = tokenLockManager.setMasterCopy(AddressZero)
+      await expect(tx).revertedWith('MasterCopy cannot be zero')
+    })
+
+    it('should add a token destination', async function () {
+      const address = Wallet.createRandom().address
+
+      expect(await tokenLockManager.isTokenDestination(address)).eq(false)
+      const tx = tokenLockManager.addTokenDestination(address)
+      await expect(tx).emit(tokenLockManager, 'TokenDestinationAllowed').withArgs(address, true)
+      expect(await tokenLockManager.isTokenDestination(address)).eq(true)
+    })
+
+    it('revert add a token destination with zero address', async function () {
+      const tx = tokenLockManager.addTokenDestination(AddressZero)
+      await expect(tx).revertedWith('Destination cannot be zero')
+    })
+  })
+
+  describe('Admin wallet', function () {
     it('should set manager', async function () {
       // Note: we use GRT contract here just to provide a different contract
       const oldManager = await tokenLock.manager()
@@ -139,7 +176,7 @@ describe('GraphTokenLockWallet', () => {
     })
   })
 
-  describe('enabling protocol', function () {
+  describe('Enabling protocol', function () {
     beforeEach(async function () {
       await tokenLockManager.addTokenDestination(staking.address)
     })
@@ -163,7 +200,7 @@ describe('GraphTokenLockWallet', () => {
     })
   })
 
-  describe('function call forwarding', function () {
+  describe('Function call forwarding', function () {
     let lockAsStaking
 
     beforeEach(async () => {

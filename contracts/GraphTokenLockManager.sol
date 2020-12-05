@@ -63,6 +63,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
      * @param _masterCopy Address of the master copy to use to clone proxies
      */
     constructor(IERC20 _graphToken, address _masterCopy) {
+        require(address(_graphToken) != address(0), "Token cannot be zero");
         _token = _graphToken;
         setMasterCopy(_masterCopy);
     }
@@ -74,8 +75,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
      * @param _masterCopy Address of contract bytecode to factory clone
      */
     function setMasterCopy(address _masterCopy) public override onlyOwner {
-        require(_masterCopy != address(0), "Must be non-zero address");
-
+        require(_masterCopy != address(0), "MasterCopy cannot be zero");
         masterCopy = _masterCopy;
         emit MasterCopyUpdated(_masterCopy);
     }
@@ -176,6 +176,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
      * @param _dst Destination address
      */
     function addTokenDestination(address _dst) external override onlyOwner {
+        require(_dst != address(0), "Destination cannot be zero");
         require(_tokenDestinations.add(_dst), "Destination already added");
         emit TokenDestinationAllowed(_dst, true);
     }
