@@ -18,7 +18,7 @@ contract MinimalProxyFactory is Ownable {
      * @param _implementation Address of the proxy target implementation
      * @return Address of the counterfactual MinimalProxy
      */
-    function getDeploymentAddress(bytes32 _salt, address _implementation) public view returns (address) {
+    function getDeploymentAddress(bytes32 _salt, address _implementation) external view returns (address) {
         return Create2.computeAddress(_salt, keccak256(_getContractCreationCode(_implementation)), address(this));
     }
 
