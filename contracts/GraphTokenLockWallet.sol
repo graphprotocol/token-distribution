@@ -88,7 +88,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @notice Sets a new manager for this contract
      * @param _newManager Address of the new manager
      */
-    function setManager(address _newManager) public onlyOwner {
+    function setManager(address _newManager) external onlyOwner {
         _setManager(_newManager);
     }
 
@@ -112,7 +112,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @notice Approves protocol access of the tokens managed by this contract
      * @dev Approves all token destinations registered in the manager to pull tokens
      */
-    function approveProtocol() public onlyBeneficiary {
+    function approveProtocol() external onlyBeneficiary {
         address[] memory dstList = manager.getTokenDestinations();
         for (uint256 i = 0; i < dstList.length; i++) {
             token.safeApprove(dstList[i], MAX_UINT256);
@@ -123,7 +123,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @notice Revokes protocol access of the tokens managed by this contract
      * @dev Revokes approval to all token destinations in the manager to pull tokens
      */
-    function revokeProtocol() public onlyBeneficiary {
+    function revokeProtocol() external onlyBeneficiary {
         address[] memory dstList = manager.getTokenDestinations();
         for (uint256 i = 0; i < dstList.length; i++) {
             token.safeApprove(dstList[i], 0);
