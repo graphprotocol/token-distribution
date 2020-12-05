@@ -8,7 +8,7 @@ echo "Flattening contracts..."
 
 FILES=(
     "contracts/GraphTokenDistributor.sol"
-    "contracts/GraphTokenLock.sol"
+    "contracts/GraphTokenLockSimple.sol"
     "contracts/GraphTokenLockWallet.sol"
     "contracts/GraphTokenLockManager.sol"
 )
