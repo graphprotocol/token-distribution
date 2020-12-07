@@ -8,18 +8,6 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IGraphTokenLock {
     enum Revocability { NotSet, Enabled, Disabled }
 
-    function initialize(
-        address _owner,
-        address _beneficiary,
-        address _token,
-        uint256 _managedAmount,
-        uint256 _startTime,
-        uint256 _endTime,
-        uint256 _periods,
-        uint256 _releaseStartTime,
-        Revocability _revocable
-    ) external;
-
     // -- Balances --
 
     function currentBalance() external view returns (uint256);
