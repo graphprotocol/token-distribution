@@ -109,7 +109,7 @@ describe('GraphTokenLockWallet', () => {
     it('should bubble up revert reasons on create', async function () {
       initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
       const tx = initWithArgs({ ...initArgs, endTime: 0 })
-      await expect(tx).revertedWith('Start time > end time')
+      await expect(tx).revertedWith('Not enough tokens to create lock')
     })
 
     // it('reject re-initialization', async function () {
