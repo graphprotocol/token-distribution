@@ -21,7 +21,7 @@ contract GraphTokenLockSimple is GraphTokenLock {
         uint256 _endTime,
         uint256 _periods,
         uint256 _releaseStartTime,
-        bool _revocable
+        Revocability _revocable
     ) external {
         _initialize(
             _owner,
