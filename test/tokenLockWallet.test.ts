@@ -13,12 +13,25 @@ import { StakingMock } from '../build/typechain/contracts/StakingMock'
 import { StakingFactory } from '@graphprotocol/contracts/dist/typechain/contracts/StakingFactory'
 
 import { defaultInitArgs, Revocability, TokenLockParameters } from './config'
-import { advanceTimeAndBlock, getAccounts, getContract, toGRT, formatGRT, Account, randomHexBytes } from './network'
+import {
+  advanceTimeAndBlock,
+  getAccounts,
+  getContract,
+  toGRT,
+  formatGRT,
+  Account,
+  randomHexBytes,
+  advanceBlocks,
+} from './network'
 
 const { AddressZero, MaxUint256 } = constants
 
 // -- Time utils --
 
+const advancePeriods = async (tokenLock: GraphTokenLockWallet, n = 1) => {
+  const periodDuration = await tokenLock.periodDuration()
+  return advanceTimeAndBlock(periodDuration.mul(n).toNumber()) // advance N period
+}
 const advanceToStart = async (tokenLock: GraphTokenLockWallet) => moveToTime(tokenLock, await tokenLock.startTime(), 60)
 const moveToTime = async (tokenLock: GraphTokenLockWallet, target: BigNumber, buffer: number) => {
   const ts = await tokenLock.currentTime()
@@ -68,6 +81,8 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
 
 async function authProtocolFunctions(tokenLockManager: GraphTokenLockManager, stakingAddress: string) {
   await tokenLockManager.setAuthFunctionCall('stake(uint256)', stakingAddress)
+  await tokenLockManager.setAuthFunctionCall('unstake(uint256)', stakingAddress)
+  await tokenLockManager.setAuthFunctionCall('withdraw()', stakingAddress)
 }
 
 // -- Tests --
@@ -258,15 +273,13 @@ describe('GraphTokenLockWallet', () => {
     })
   })
 
-  describe('Revokability and used tokens', function () {
+  describe('Revokability, Call Forwarding and Used Tokens', function () {
     let lockAsStaking
 
     beforeEach(async () => {
       // Deploy a revocable contract with 6 periods, 1 per month
       initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('10000000'))
       tokenLock = await initWithArgs({ ...initArgs, periods: 6, revocable: Revocability.Enabled })
-
-      console.log(await tokenLock.currentTime())
 
       // Use the tokenLock contract as if it were the Staking contract
       lockAsStaking = StakingFactory.connect(tokenLock.address, deployer.signer)
@@ -278,20 +291,33 @@ describe('GraphTokenLockWallet', () => {
       await tokenLock.connect(beneficiary.signer).approveProtocol()
     })
 
-    it('should revoke unvested amount', async function () {
-      advanceToStart(tokenLock)
+    it('reject using more than vested amount in the protocol', async function () {
+      await advanceToStart(tokenLock)
 
-      // Stake funds into the protocol
+      // At this point no period has passed so we haven't vested any token
+      // Try to stake funds into the protocol should fail
       const stakeAmount = toGRT('100')
       const tx = lockAsStaking.connect(beneficiary.signer).stake(stakeAmount)
-      await tx
+      await expect(tx).revertedWith('Cannot use more tokens than vested amount')
+    })
 
-      // Owner tries to revoke
-      const unvestedAmount = (await tokenLock.managedAmount()).sub(await tokenLock.vestedAmount())
-      console.log(formatGRT(unvestedAmount))
+    it('should allow to get profit from the protocol', async function () {
+      await advanceToStart(tokenLock)
+      await advancePeriods(tokenLock, 1)
 
-      // Fails because owner can't revoke tokens already used in the protocol
-      await tokenLock.connect(deployer.signer).revoke()
+      // At this point we vested one period, we have tokens
+      // Stake funds into the protocol
+      const stakeAmount = toGRT('100')
+      await lockAsStaking.connect(beneficiary.signer).stake(stakeAmount)
+
+      // Simulate having a profit
+      await grt.approve(staking.address, toGRT('1000000'))
+      await staking.stakeTo(lockAsStaking.address, toGRT('1000000'))
+
+      // Unstake more than we used in the protocol, this should work!
+      await lockAsStaking.connect(beneficiary.signer).unstake(toGRT('1000000'))
+      await advanceBlocks(20)
+      await lockAsStaking.connect(beneficiary.signer).withdraw()
     })
   })
 })

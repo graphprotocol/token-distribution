@@ -3,6 +3,7 @@
 pragma solidity ^0.7.3;
 
 import "@openzeppelin/contracts/utils/Address.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
@@ -28,11 +29,13 @@ import "./IGraphTokenLockManager.sol";
  * the maximum amount of tokens is authorized.
  */
 contract GraphTokenLockWallet is GraphTokenLock {
+    using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
     // -- State --
 
     IGraphTokenLockManager public manager;
+    uint256 public usedAmount;
 
     uint256 private constant MAX_UINT256 = 2**256 - 1;
 
@@ -129,7 +132,28 @@ contract GraphTokenLockWallet is GraphTokenLock {
         address _target = manager.getAuthFunctionCallTarget(msg.sig);
         require(_target != address(0), "Unauthorized function");
 
+        uint256 oldBalance = currentBalance();
+
         // Call function with data
         Address.functionCall(_target, msg.data);
+
+        // Tracked used tokens in the protocol
+        // We do this check after balances were updated by the forwarded call
+        // Check is only enforced for revocable contracts to save some gas
+        if (revocable == Revocability.Enabled) {
+            // Track contract balance change
+            uint256 newBalance = currentBalance();
+            if (newBalance < oldBalance) {
+                // Outflow
+                uint256 diff = oldBalance.sub(newBalance);
+                usedAmount = usedAmount.add(diff);
+            } else {
+                // Inflow: We can receive profits from the protocol, that could make usedAmount to
+                // underflow. We set it to zero in that case.
+                uint256 diff = newBalance.sub(oldBalance);
+                usedAmount = (diff >= usedAmount) ? 0 : usedAmount.sub(diff);
+            }
+            require(usedAmount <= vestedAmount(), "Cannot use more tokens than vested amount");
+        }
     }
 }

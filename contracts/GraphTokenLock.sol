@@ -52,7 +52,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
     // the amount to release each period
     uint256 public releaseStartTime;
     // A cliff set a date to which a beneficiary needs to get to vest
-    // all preceeding periods
+    // all preceding periods
     uint256 public vestingCliffTime;
     Revocability public revocable; // Whether to use vesting for locked funds
 
