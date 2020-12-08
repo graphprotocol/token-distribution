@@ -1,4 +1,7 @@
+import * as dotenv from 'dotenv'
 import { extendEnvironment, task } from 'hardhat/config'
+
+dotenv.config()
 
 // Plugins
 
