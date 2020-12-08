@@ -1,4 +1,4 @@
-import { constants, Wallet } from 'ethers'
+import { constants, BigNumber, Wallet } from 'ethers'
 import { expect } from 'chai'
 import { deployments, ethers } from 'hardhat'
 
@@ -12,10 +12,19 @@ import { StakingMock } from '../build/typechain/contracts/StakingMock'
 
 import { StakingFactory } from '@graphprotocol/contracts/dist/typechain/contracts/StakingFactory'
 
-import { defaultInitArgs, TokenLockParameters } from './config'
-import { getAccounts, getContract, toGRT, Account, randomHexBytes } from './network'
+import { defaultInitArgs, Revocability, TokenLockParameters } from './config'
+import { advanceTimeAndBlock, getAccounts, getContract, toGRT, formatGRT, Account, randomHexBytes } from './network'
 
 const { AddressZero, MaxUint256 } = constants
+
+// -- Time utils --
+
+const advanceToStart = async (tokenLock: GraphTokenLockWallet) => moveToTime(tokenLock, await tokenLock.startTime(), 60)
+const moveToTime = async (tokenLock: GraphTokenLockWallet, target: BigNumber, buffer: number) => {
+  const ts = await tokenLock.currentTime()
+  const delta = target.sub(ts).add(buffer)
+  return advanceTimeAndBlock(delta.toNumber())
+}
 
 // Fixture
 const setupTest = deployments.createFixture(async ({ deployments }) => {
@@ -47,7 +56,7 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   const staking = await getContract('StakingMock')
 
   // Fund the manager contract
-  await grt.connect(deployer.signer).transfer(tokenLockManager.address, toGRT('35000000'))
+  await grt.connect(deployer.signer).transfer(tokenLockManager.address, toGRT('100000000'))
 
   return {
     grt: grt as GraphTokenMock,
@@ -110,7 +119,7 @@ describe('GraphTokenLockWallet', () => {
     it('should bubble up revert reasons on create', async function () {
       initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
       const tx = initWithArgs({ ...initArgs, endTime: 0 })
-      await expect(tx).revertedWith('Not enough tokens to create lock')
+      await expect(tx).revertedWith('Start time > end time')
     })
 
     // it('reject re-initialization', async function () {
@@ -246,6 +255,43 @@ describe('GraphTokenLockWallet', () => {
       // Send a function call that is not authorized in the TokenLockManager
       const tx = lockAsStaking.connect(beneficiary.signer).setController(randomHexBytes(20))
       await expect(tx).revertedWith('Unauthorized function')
+    })
+  })
+
+  describe('Revokability and used tokens', function () {
+    let lockAsStaking
+
+    beforeEach(async () => {
+      // Deploy a revocable contract with 6 periods, 1 per month
+      initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('10000000'))
+      tokenLock = await initWithArgs({ ...initArgs, periods: 6, revocable: Revocability.Enabled })
+
+      console.log(await tokenLock.currentTime())
+
+      // Use the tokenLock contract as if it were the Staking contract
+      lockAsStaking = StakingFactory.connect(tokenLock.address, deployer.signer)
+
+      // Add the staking contract as token destination
+      await tokenLockManager.addTokenDestination(staking.address)
+
+      // Approve contracts to pull tokens from the token lock
+      await tokenLock.connect(beneficiary.signer).approveProtocol()
+    })
+
+    it('should revoke unvested amount', async function () {
+      advanceToStart(tokenLock)
+
+      // Stake funds into the protocol
+      const stakeAmount = toGRT('100')
+      const tx = lockAsStaking.connect(beneficiary.signer).stake(stakeAmount)
+      await tx
+
+      // Owner tries to revoke
+      const unvestedAmount = (await tokenLock.managedAmount()).sub(await tokenLock.vestedAmount())
+      console.log(formatGRT(unvestedAmount))
+
+      // Fails because owner can't revoke tokens already used in the protocol
+      await tokenLock.connect(deployer.signer).revoke()
     })
   })
 })
