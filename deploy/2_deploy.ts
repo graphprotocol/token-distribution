@@ -13,6 +13,15 @@ const { getAddress, parseEther, formatEther } = utils
 
 const logger = consola.create({})
 
+const askConfirm = async (message: string) => {
+  const res = await inquirer.prompt({
+    name: 'confirm',
+    type: 'confirm',
+    message,
+  })
+  return res.confirm
+}
+
 const getTokenAddress = async (): Promise<string> => {
   const res1 = await inquirer.prompt({
     name: 'token',
@@ -60,8 +69,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   // -- Fund --
 
-  // Fund the manager only if we are not in mainnet
-  if (hre.network.name !== 'mainnet') {
+  if (await askConfirm('Do you want to fund the manager?')) {
     const fundAmount = parseEther('100000000')
     logger.info(`Funding ${managerDeploy.address} with ${formatEther(fundAmount)} GRT...`)
 

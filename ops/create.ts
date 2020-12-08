@@ -11,6 +11,12 @@ const { getAddress, keccak256, formatEther, parseEther } = utils
 
 const logger = consola.create({})
 
+enum Revocability {
+  NotSet,
+  Enabled,
+  Disabled,
+}
+
 interface TokenLockConfigEntry {
   owner?: string
   beneficiary: string
@@ -18,8 +24,9 @@ interface TokenLockConfigEntry {
   startTime: string
   endTime: string
   periods: string
-  revocable: boolean
+  revocable: Revocability
   releaseStartTime: string
+  vestingCliffTime: string
   salt?: string
   txHash?: string
   contractAddress?: string
@@ -54,8 +61,9 @@ const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
         startTime: entry[2],
         endTime: entry[3],
         periods: entry[4],
-        revocable: parseInt(entry[5]) === 1,
+        revocable: parseInt(entry[5]),
         releaseStartTime: entry[6],
+        vestingCliffTime: entry[7],
       }
     })
 }
@@ -114,6 +122,7 @@ const prettyConfigEntry = (config: TokenLockConfigEntry) => {
     Periods: ${config.periods}
     Revocable: ${config.revocable}
     ReleaseCliff: ${config.releaseStartTime} (${prettyDate(config.releaseStartTime)})
+    VestingCliff: ${config.vestingCliffTime} (${prettyDate(config.vestingCliffTime)})
   `
 }
 
@@ -145,7 +154,7 @@ const calculateSalt = async (
 
   return keccak256(
     factory.interface.encodeFunctionData(
-      'initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,bool)',
+      'initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint8)',
       [
         managerAddress,
         entry.owner,
@@ -156,6 +165,7 @@ const calculateSalt = async (
         entry.endTime,
         entry.periods,
         entry.releaseStartTime,
+        entry.vestingCliffTime,
         entry.revocable,
       ],
     ),
@@ -302,6 +312,7 @@ task('create-token-locks', 'Create token lock contracts from file')
         entry.endTime,
         entry.periods,
         entry.releaseStartTime,
+        entry.vestingCliffTime,
         entry.revocable,
       )
       const receipt = await waitTransaction(tx)
@@ -335,7 +346,6 @@ task('manager-setup-auth', 'Setup default authorized functions in the manager')
     // Setup authorized functions
     const signatures = [
       'stake(uint256)',
-      'stakeTo(address,uint256)',
       'unstake(uint256)',
       'withdraw()',
       'delegate(address,uint256)',
@@ -344,14 +354,53 @@ task('manager-setup-auth', 'Setup default authorized functions in the manager')
       'setDelegationParameters(uint32 ,uint32,uint32)',
       'setOperator(address,bool)',
     ]
-    logger.info('Setup authorized functions...')
-    const targets = Array(signatures.length).fill(taskArgs.targetAddress)
-    const tx1 = await manager.setAuthFunctionCallMany(signatures, targets)
-    await waitTransaction(tx1)
-    logger.success('Done!\n')
 
-    // Setup authorized token destinations
-    logger.info('Setup authorized destinations...')
-    const tx2 = await manager.addTokenDestination(taskArgs.targetAddress)
-    await waitTransaction(tx2)
+    logger.info('The following signatures will be authorized:')
+    logger.info(signatures)
+
+    if (await askConfirm()) {
+      // Setup authorized functions
+      logger.info('Setup authorized functions...')
+      const targets = Array(signatures.length).fill(taskArgs.targetAddress)
+      const tx1 = await manager.setAuthFunctionCallMany(signatures, targets)
+      await waitTransaction(tx1)
+      logger.success('Done!\n')
+
+      // Setup authorized token destinations
+      logger.info('Setup authorized destinations...')
+      const tx2 = await manager.addTokenDestination(taskArgs.targetAddress)
+      await waitTransaction(tx2)
+    }
+  })
+
+task('manager-deposit', 'Deposit fund into the manager')
+  .addParam('amount', 'Amount to deposit in GRT')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    // Get contracts
+    const manager = await getTokenLockManagerOrFail(hre)
+
+    // Prepare
+    logger.log(await prettyEnv(hre))
+
+    const tokenAddress = await manager.token()
+
+    logger.info('Deploying token lock contracts...')
+    logger.log(`> GraphToken: ${tokenAddress}`)
+    logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
+    logger.log(`> GraphTokenLockManager: ${manager.address}`)
+
+    // Deposit funds
+    logger.log(`You are depositing ${taskArgs.amount} into ${manager.address}...`)
+    if (await askConfirm()) {
+      const weiAmount = parseEther(taskArgs.amount)
+
+      logger.log('Approve...')
+      const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
+      const tx1 = await grt.approve(manager.address, weiAmount)
+      await waitTransaction(tx1)
+
+      logger.log('Deposit...')
+      const tx2 = await manager.deposit(weiAmount)
+      await waitTransaction(tx2)
+    }
   })
