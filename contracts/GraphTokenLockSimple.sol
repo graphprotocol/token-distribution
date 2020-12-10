@@ -9,8 +9,15 @@ import "./GraphTokenLock.sol";
  * @notice This contract is the concrete simple implementation built on top of the base
  * GraphTokenLock functionality for use when we only need the token lock schedule
  * features but no interaction with the network.
+ * 
+ * This contract is designed to be deployed without the use of a TokenManager.
  */
 contract GraphTokenLockSimple is GraphTokenLock {
+    // Constructor
+    constructor() {
+        Ownable.initialize(msg.sender);
+    }
+
     // Initializer
     function initialize(
         address _owner,
@@ -23,7 +30,7 @@ contract GraphTokenLockSimple is GraphTokenLock {
         uint256 _releaseStartTime,
         uint256 _vestingCliffTime,
         Revocability _revocable
-    ) external {
+    ) external onlyOwner {
         _initialize(
             _owner,
             _beneficiary,
