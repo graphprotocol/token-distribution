@@ -42,6 +42,8 @@ contract GraphTokenLockWallet is GraphTokenLock {
     // -- Events --
 
     event ManagerUpdated(address indexed _oldManager, address indexed _newManager);
+    event ApproveTokenDestinations();
+    event RevokeTokenDestinations();
 
     // Initializer
     function initialize(
@@ -107,6 +109,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
         for (uint256 i = 0; i < dstList.length; i++) {
             token.safeApprove(dstList[i], MAX_UINT256);
         }
+        emit ApproveTokenDestinations();
     }
 
     /**
@@ -118,6 +121,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
         for (uint256 i = 0; i < dstList.length; i++) {
             token.safeApprove(dstList[i], 0);
         }
+        emit RevokeTokenDestinations();
     }
 
     /**
