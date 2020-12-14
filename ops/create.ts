@@ -1,8 +1,10 @@
+import PQueue from 'p-queue'
 import fs from 'fs'
 import consola from 'consola'
 import inquirer from 'inquirer'
 import { utils, BigNumber, Event, ContractTransaction, ContractReceipt, Contract, ContractFactory } from 'ethers'
 
+import { NonceManager } from '@ethersproject/experimental'
 import { task } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { boolean } from 'hardhat/internal/core/params/argumentTypes'
@@ -75,7 +77,7 @@ const deployEntryToCSV = (entry: TokenLockDeployEntry) => {
     entry.startTime,
     entry.endTime,
     entry.periods,
-    entry.revocable ? 1 : 0,
+    entry.revocable,
     entry.releaseStartTime,
     entry.contractAddress,
     entry.salt,
@@ -123,6 +125,7 @@ const prettyConfigEntry = (config: TokenLockConfigEntry) => {
     Revocable: ${config.revocable}
     ReleaseCliff: ${config.releaseStartTime} (${prettyDate(config.releaseStartTime)})
     VestingCliff: ${config.vestingCliffTime} (${prettyDate(config.vestingCliffTime)})
+    -> ContractAddress: ${config.contractAddress}
   `
 }
 
@@ -182,7 +185,7 @@ const getDeployContractAddresses = async (entries: TokenLockConfigEntry[], manag
   for (const entry of entries) {
     const contractAddress = await manager.getDeploymentAddress(entry.salt, masterCopy)
     const deployEntry = { ...entry, salt: entry.salt, txHash: '', contractAddress }
-    console.log(deployEntryToCSV(deployEntry))
+    logger.log(prettyConfigEntry(deployEntry))
   }
 }
 
@@ -227,6 +230,8 @@ const waitTransaction = async (tx: ContractTransaction, confirmations = 1): Prom
   return receipt
 }
 
+// -- Tasks --
+
 task('create-token-locks', 'Create token lock contracts from file')
   .addParam('deployFile', 'File from where to read the deploy config')
   .addParam('resultFile', 'File where to save results')
@@ -262,18 +267,18 @@ task('create-token-locks', 'Create token lock contracts from file')
     entries = await populateEntries(hre, entries, manager.address, tokenAddress, taskArgs.ownerAddress)
     deployedEntries = await populateEntries(hre, deployedEntries, manager.address, tokenAddress, taskArgs.ownerAddress)
 
-    // Dry running
-    if (taskArgs.dryRun) {
-      await getDeployContractAddresses(entries, manager)
-      process.exit(0)
-    }
-
     // Filter out already deployed ones
     entries = entries.filter((entry) => !deployedEntries.find((deployedEntry) => deployedEntry.salt === entry.salt))
     logger.success(`Total of ${entries.length} entries after removing already deployed. All good!`)
     if (entries.length === 0) {
       logger.warn('Nothing new to deploy')
       process.exit(1)
+    }
+
+    // Dry running
+    if (taskArgs.dryRun) {
+      await getDeployContractAddresses(entries, manager)
+      process.exit(0)
     }
 
     // Check if Manager is funded
@@ -296,34 +301,42 @@ task('create-token-locks', 'Create token lock contracts from file')
       process.exit(1)
     }
 
-    // Deploy
-    // TODO: send tx in batch
+    // Deploy contracts
+    const accounts = await hre.ethers.getSigners()
+    const queue = new PQueue({ concurrency: 4 })
+    const nonceManager = new NonceManager(accounts[0]) // Use NonceManager to send concurrent txs
+
     for (const entry of entries) {
-      logger.log('')
-      logger.info(`Creating contract...`)
-      logger.log(prettyConfigEntry(entry))
+      queue.add(async () => {
+        logger.log('')
+        logger.info(`Creating contract...`)
+        logger.log(prettyConfigEntry(entry))
 
-      // Deploy
-      const tx = await manager.createTokenLockWallet(
-        entry.owner,
-        entry.beneficiary,
-        entry.managedAmount,
-        entry.startTime,
-        entry.endTime,
-        entry.periods,
-        entry.releaseStartTime,
-        entry.vestingCliffTime,
-        entry.revocable,
-      )
-      const receipt = await waitTransaction(tx)
-      const event: Event = receipt.events[0]
-      const contractAddress = event.args['proxy']
-      logger.success('Deployed:', contractAddress)
+        // Deploy
+        const tx = await manager
+          .connect(nonceManager)
+          .createTokenLockWallet(
+            entry.owner,
+            entry.beneficiary,
+            entry.managedAmount,
+            entry.startTime,
+            entry.endTime,
+            entry.periods,
+            entry.releaseStartTime,
+            entry.vestingCliffTime,
+            entry.revocable,
+          )
+        const receipt = await waitTransaction(tx)
+        const event: Event = receipt.events[0]
+        const contractAddress = event.args['proxy']
+        logger.success(`Deployed: ${contractAddress} (${entry.salt})`)
 
-      // Save result
-      const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
-      saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+        // Save result
+        const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
+        saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+      })
     }
+    await queue.onIdle()
   })
 
 task('manager-setup-auth', 'Setup default authorized functions in the manager')
