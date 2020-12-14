@@ -397,7 +397,7 @@ task('manager-deposit', 'Deposit fund into the manager')
 
     const tokenAddress = await manager.token()
 
-    logger.info('Deploying token lock contracts...')
+    logger.info('Using:')
     logger.log(`> GraphToken: ${tokenAddress}`)
     logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
     logger.log(`> GraphTokenLockManager: ${manager.address}`)
@@ -417,3 +417,49 @@ task('manager-deposit', 'Deposit fund into the manager')
       await waitTransaction(tx2)
     }
   })
+
+task('manager-withdraw', 'Withdraw fund from the manager')
+  .addParam('amount', 'Amount to deposit in GRT')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    // Get contracts
+    const manager = await getTokenLockManagerOrFail(hre)
+
+    // Prepare
+    logger.log(await prettyEnv(hre))
+
+    const tokenAddress = await manager.token()
+
+    logger.info('Using:')
+    logger.log(`> GraphToken: ${tokenAddress}`)
+    logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
+    logger.log(`> GraphTokenLockManager: ${manager.address}`)
+
+    // Withdraw funds
+    logger.log(`You are withdrawing ${taskArgs.amount} from ${manager.address}...`)
+    if (await askConfirm()) {
+      const weiAmount = parseEther(taskArgs.amount)
+
+      logger.log('Deposit...')
+      const tx = await manager.withdraw(weiAmount)
+      await waitTransaction(tx)
+    }
+  })
+
+task('manager-balance', 'Get current manager balance').setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+  // Get contracts
+  const manager = await getTokenLockManagerOrFail(hre)
+
+  // Prepare
+  logger.log(await prettyEnv(hre))
+
+  const tokenAddress = await manager.token()
+
+  logger.info('Using:')
+  logger.log(`> GraphToken: ${tokenAddress}`)
+  logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
+  logger.log(`> GraphTokenLockManager: ${manager.address}`)
+
+  const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
+  const balance = await grt.balanceOf(manager.address)
+  logger.log('Current Manager balance is ', formatEther(balance))
+})
