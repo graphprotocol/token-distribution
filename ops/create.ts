@@ -49,6 +49,22 @@ const askConfirm = async () => {
   return res.confirm
 }
 
+const isValidAddress = (address: string) => {
+  try {
+    getAddress(address)
+    return true
+  } catch (err) {
+    logger.error(`Invalid address ${address}`)
+    return false
+  }
+}
+
+const isValidAddressOrFail = (address: string) => {
+  if (!isValidAddress(address)) {
+    process.exit(1)
+  }
+}
+
 const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
   const data = fs.readFileSync(__dirname + filepath, 'utf8')
   const entries = data.split('\n').map((e) => e.trim())
@@ -94,10 +110,7 @@ const saveDeployResult = (filepath: string, entry: TokenLockDeployEntry) => {
 
 const checkAddresses = (entries: TokenLockConfigEntry[]): boolean => {
   for (const entry of entries) {
-    try {
-      getAddress(entry.beneficiary.trim())
-    } catch (err) {
-      logger.error(`Invalid csv entry: Address: ${entry.beneficiary}`)
+    if (!isValidAddress(entry.beneficiary)) {
       return false
     }
   }
@@ -339,6 +352,93 @@ task('create-token-locks', 'Create token lock contracts from file')
     await queue.onIdle()
   })
 
+task('create-token-locks-simple', 'Create token lock contracts from file')
+  .addParam('deployFile', 'File from where to read the deploy config')
+  .addParam('resultFile', 'File where to save results')
+  .addParam('tokenAddress', 'Token address to use in the contracts')
+  .addParam('ownerAddress', 'Owner address of token lock contracts')
+  .addOptionalParam('dryRun', 'Get the deterministic contract addresses but do not deploy', false, boolean)
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    // Prepare
+    logger.log(await prettyEnv(hre))
+
+    // Validations
+    const tokenAddress = taskArgs.tokenAddress
+    const ownerAddress = taskArgs.ownerAddress
+    isValidAddressOrFail(tokenAddress)
+    isValidAddressOrFail(ownerAddress)
+
+    logger.info('Deploying token lock simple contracts...')
+    logger.log(`> GraphToken: ${tokenAddress}`)
+
+    // Load config entries
+    logger.log('')
+    logger.info('Verifying deployment data...')
+    let entries = loadDeployData('/' + taskArgs.deployFile)
+    if (!checkAddresses(entries)) {
+      process.exit(1)
+    }
+    logger.success(`Total of ${entries.length} entries. All good!`)
+
+    // Load deployed entries
+    const deployedEntries = loadDeployData('/' + taskArgs.resultFile)
+
+    // Filter out already deployed ones
+    entries = entries.filter((entry) => !deployedEntries.find((deployedEntry) => deployedEntry.salt === entry.salt))
+    logger.success(`Total of ${entries.length} entries after removing already deployed. All good!`)
+    if (entries.length === 0) {
+      logger.warn('Nothing new to deploy')
+      process.exit(1)
+    }
+
+    // Check if Manager is funded
+    logger.log('')
+    logger.info('Verifying balances...')
+    const totalAmount = getTotalAmount(entries)
+    logger.log(`> Amount to distribute:  ${formatEther(totalAmount)} GRT`)
+
+    // Summary
+    if (!(await askConfirm())) {
+      logger.log('Cancelled')
+      process.exit(1)
+    }
+
+    // Get accounts
+    const accounts = await hre.ethers.getSigners()
+    const deployer = accounts[0]
+
+    // Deploy contracts
+    for (const entry of entries) {
+      logger.log('')
+      logger.info(`Creating contract...`)
+      logger.log(prettyConfigEntry(entry))
+
+      const tokenLockSimpleFactory = await getContractFactory(hre, 'GraphTokenLockSimple')
+      const tokenLockSimpleDeployment = await tokenLockSimpleFactory.connect(deployer).deploy()
+      const tokenLockSimple = await tokenLockSimpleDeployment.deployed()
+      logger.success(`Deployed: ${tokenLockSimple.address}`)
+
+      logger.log('Setting up...')
+      const tx = await tokenLockSimple.initialize(
+        ownerAddress,
+        entry.beneficiary,
+        tokenAddress,
+        entry.managedAmount,
+        entry.startTime,
+        entry.endTime,
+        entry.periods,
+        entry.releaseStartTime,
+        entry.vestingCliffTime,
+        entry.revocable,
+      )
+      await waitTransaction(tx)
+
+      // Save result
+      const deployResult = { ...entry, txHash: tx.hash, salt: '', contractAddress: tokenLockSimple.address }
+      saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+    }
+  })
+
 task('manager-setup-auth', 'Setup default authorized functions in the manager')
   .addParam('targetAddress', 'Target address for function calls')
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
@@ -349,12 +449,7 @@ task('manager-setup-auth', 'Setup default authorized functions in the manager')
     logger.log(await prettyEnv(hre))
 
     // Validations
-    try {
-      getAddress(taskArgs.targetAddress)
-    } catch (err) {
-      logger.error(`Invalid target address ${taskArgs.targetAddress}`)
-      process.exit(1)
-    }
+    isValidAddressOrFail(taskArgs.targetAddress)
 
     // Setup authorized functions
     const signatures = [
