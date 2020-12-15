@@ -35,9 +35,9 @@ interface TokenLockConfigEntry {
 }
 
 interface TokenLockDeployEntry extends TokenLockConfigEntry {
+  contractAddress: string
   salt: string
   txHash: string
-  contractAddress: string
 }
 
 const askConfirm = async () => {
@@ -86,6 +86,30 @@ const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
     })
 }
 
+const loadResultData = (filepath: string): TokenLockConfigEntry[] => {
+  const data = fs.readFileSync(__dirname + filepath, 'utf8')
+  const entries = data.split('\n').map((e) => e.trim())
+  entries.shift() // remove the title from the csv
+  return entries
+    .filter((entryData) => !!entryData)
+    .map((entryData) => {
+      const entry = entryData.split(',')
+      return {
+        beneficiary: entry[0],
+        managedAmount: parseEther(entry[1]),
+        startTime: entry[2],
+        endTime: entry[3],
+        periods: entry[4],
+        revocable: parseInt(entry[5]),
+        releaseStartTime: entry[6],
+        vestingCliffTime: entry[7],
+        contractAddress: entry[8],
+        salt: entry[9],
+        txHash: entry[10],
+      }
+    })
+}
+
 const deployEntryToCSV = (entry: TokenLockDeployEntry) => {
   return [
     entry.beneficiary,
@@ -95,6 +119,7 @@ const deployEntryToCSV = (entry: TokenLockDeployEntry) => {
     entry.periods,
     entry.revocable,
     entry.releaseStartTime,
+    entry.vestingCliffTime,
     entry.contractAddress,
     entry.salt,
     entry.txHash,
@@ -214,6 +239,7 @@ const populateEntries = async (
     entry.owner = ownerAddress
     entry.salt = await calculateSalt(hre, entry, managerAddress, tokenAddress)
     results.push(entry)
+    console.log(entry.beneficiary, entry.salt)
   }
   return results
 }
@@ -274,11 +300,10 @@ task('create-token-locks', 'Create token lock contracts from file')
     logger.success(`Total of ${entries.length} entries. All good!`)
 
     // Load deployed entries
-    let deployedEntries = loadDeployData('/' + taskArgs.resultFile)
+    const deployedEntries = loadResultData('/' + taskArgs.resultFile)
 
     // Populate entries
     entries = await populateEntries(hre, entries, manager.address, tokenAddress, taskArgs.ownerAddress)
-    deployedEntries = await populateEntries(hre, deployedEntries, manager.address, tokenAddress, taskArgs.ownerAddress)
 
     // Filter out already deployed ones
     entries = entries.filter((entry) => !deployedEntries.find((deployedEntry) => deployedEntry.salt === entry.salt))
@@ -374,22 +399,11 @@ task('create-token-locks-simple', 'Create token lock contracts from file')
     // Load config entries
     logger.log('')
     logger.info('Verifying deployment data...')
-    let entries = loadDeployData('/' + taskArgs.deployFile)
+    const entries = loadDeployData('/' + taskArgs.deployFile)
     if (!checkAddresses(entries)) {
       process.exit(1)
     }
     logger.success(`Total of ${entries.length} entries. All good!`)
-
-    // Load deployed entries
-    const deployedEntries = loadDeployData('/' + taskArgs.resultFile)
-
-    // Filter out already deployed ones
-    entries = entries.filter((entry) => !deployedEntries.find((deployedEntry) => deployedEntry.salt === entry.salt))
-    logger.success(`Total of ${entries.length} entries after removing already deployed. All good!`)
-    if (entries.length === 0) {
-      logger.warn('Nothing new to deploy')
-      process.exit(1)
-    }
 
     // Check if Manager is funded
     logger.log('')
