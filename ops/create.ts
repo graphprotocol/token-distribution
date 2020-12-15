@@ -89,7 +89,6 @@ const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
 const loadResultData = (filepath: string): TokenLockConfigEntry[] => {
   const data = fs.readFileSync(__dirname + filepath, 'utf8')
   const entries = data.split('\n').map((e) => e.trim())
-  entries.shift() // remove the title from the csv
   return entries
     .filter((entryData) => !!entryData)
     .map((entryData) => {
@@ -239,7 +238,6 @@ const populateEntries = async (
     entry.owner = ownerAddress
     entry.salt = await calculateSalt(hre, entry, managerAddress, tokenAddress)
     results.push(entry)
-    console.log(entry.beneficiary, entry.salt)
   }
   return results
 }
