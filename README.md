@@ -15,6 +15,7 @@ It also supports revocation by the contract owner to be used for vesting schedul
 The contract supports receiving extra funds over the managed tokens that can be withdrawn by the beneficiary at any time.
 
 A releaseStartTime parameter is included to override the default release schedule and perform the first release on the configured time. After that initial release it will continue with the default schedule.
+
 ### GraphTokenLockWallet
 
 This contract is built on top of the base **GraphTokenLock** functionality. It allows the use of locked funds only when authorized function calls are issued to the contract. 
@@ -56,3 +57,9 @@ Contract that works as a factory of **GraphTokenLockWallet** contracts. It manag
 The Manager supports creating TokenLock contracts based on a mastercopy bytecode using a Minimal Proxy to save gas. It also do so with CREATE2 to have reproducible addresses, this way any future to be deployed contract address can be passed to beneficiaries before actual deployment.
 
 For convenience, the Manager will also fund the created contract with the amount of each contract's managed tokens.
+
+## Copyright
+
+Copyright &copy; 2020 The Graph Foundation
+
+Licensed under the [MIT license](LICENSE.md).
