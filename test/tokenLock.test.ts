@@ -1,5 +1,5 @@
 import { expect } from 'chai'
-import { BigNumber } from 'ethers'
+import { constants, BigNumber } from 'ethers'
 import { deployments } from 'hardhat'
 import 'hardhat-deploy'
 
@@ -8,6 +8,8 @@ import { GraphTokenLockSimple } from '../build/typechain/contracts/GraphTokenLoc
 
 import { createScheduleScenarios, defaultInitArgs, TokenLockParameters, Revocability } from './config'
 import { advanceTimeAndBlock, getAccounts, getContract, toBN, toGRT, Account } from './network'
+
+const { AddressZero } = constants
 
 // Fixture
 const setupTest = deployments.createFixture(async ({ deployments }) => {
@@ -435,6 +437,28 @@ describe('GraphTokenLockSimple', () => {
             // Test
             const surplusAmount = await tokenLock.surplusAmount()
             expect(surplusAmount).eq(toGRT('1000'))
+          })
+        })
+      })
+
+      describe('Beneficiary admin', function () {
+        describe('changeBeneficiary()', function () {
+          it('should change beneficiary', async function () {
+            const tx = tokenLock.connect(beneficiary1.signer).changeBeneficiary(beneficiary2.address)
+            await expect(tx).emit(tokenLock, 'BeneficiaryChanged').withArgs(beneficiary2.address)
+
+            const afterBeneficiary = await tokenLock.beneficiary()
+            expect(afterBeneficiary).eq(beneficiary2.address)
+          })
+
+          it('reject if beneficiary is zero', async function () {
+            const tx = tokenLock.connect(beneficiary1.signer).changeBeneficiary(AddressZero)
+            await expect(tx).revertedWith('Empty beneficiary')
+          })
+
+          it('reject if not authorized', async function () {
+            const tx = tokenLock.connect(deployer.signer).changeBeneficiary(beneficiary2.address)
+            await expect(tx).revertedWith('!auth')
           })
         })
       })
