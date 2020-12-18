@@ -570,3 +570,34 @@ task('manager-balance', 'Get current manager balance').setAction(async (taskArgs
   const balance = await grt.balanceOf(manager.address)
   logger.log('Current Manager balance is ', formatEther(balance))
 })
+
+task('scan-token-locks-balances', 'Check current balances of deployed contracts')
+  .addParam('resultFile', 'File where to load deployed contracts')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    // Get contracts
+    const manager = await getTokenLockManagerOrFail(hre)
+
+    // Prepare
+    logger.log(await prettyEnv(hre))
+
+    const tokenAddress = await manager.token()
+
+    logger.info('Using:')
+    logger.log(`> GraphToken: ${tokenAddress}`)
+    logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
+    logger.log(`> GraphTokenLockManager: ${manager.address}`)
+
+    const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
+    const balance = await grt.balanceOf(manager.address)
+    logger.log('Current Manager balance is ', formatEther(balance))
+
+    // Load deployed entries
+    const deployedEntries = loadResultData('/' + taskArgs.resultFile)
+
+    let balances = BigNumber.from(0)
+    for (const entry of deployedEntries) {
+      balances = balances.add(await grt.balanceOf(entry.contractAddress))
+    }
+    logger.log(deployedEntries.length)
+    logger.log(formatEther(balances))
+  })
