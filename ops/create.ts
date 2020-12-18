@@ -471,7 +471,7 @@ task('manager-setup-auth', 'Setup default authorized functions in the manager')
       'delegate(address,uint256)',
       'undelegate(address,uint256)',
       'withdrawDelegated(address,address)',
-      'setDelegationParameters(uint32 ,uint32,uint32)',
+      'setDelegationParameters(uint32,uint32,uint32)',
       'setOperator(address,bool)',
     ]
 
