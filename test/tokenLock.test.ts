@@ -463,6 +463,48 @@ describe('GraphTokenLockSimple', () => {
         })
       })
 
+      describe('Recovery', function () {
+        beforeEach(async function () {
+          await fundContract(tokenLock)
+        })
+
+        it('should cancel lock and return funds to owner', async function () {
+          const beforeBalance = await grt.balanceOf(deployer.address)
+          const contractBalance = await grt.balanceOf(tokenLock.address)
+          const tx = tokenLock.connect(deployer.signer).cancelLock()
+          await expect(tx).emit(tokenLock, 'LockCanceled')
+
+          const afterBalance = await grt.balanceOf(deployer.address)
+          const diff = afterBalance.sub(beforeBalance)
+          expect(diff).eq(contractBalance)
+        })
+
+        it('reject cancel lock from non-owner', async function () {
+          const tx = tokenLock.connect(beneficiary1.signer).cancelLock()
+          await expect(tx).revertedWith('Ownable: caller is not the owner')
+        })
+
+        it('should accept lock', async function () {
+          expect(await tokenLock.isAccepted()).eq(false)
+          const tx = tokenLock.connect(beneficiary1.signer).acceptLock()
+          await expect(tx).emit(tokenLock, 'LockAccepted')
+          expect(await tokenLock.isAccepted()).eq(true)
+        })
+
+        it('reject accept lock from non-beneficiary', async function () {
+          expect(await tokenLock.isAccepted()).eq(false)
+          const tx = tokenLock.connect(deployer.signer).acceptLock()
+          await expect(tx).revertedWith('!auth')
+        })
+
+        it('reject cancel after contract accepted', async function () {
+          await tokenLock.connect(beneficiary1.signer).acceptLock()
+
+          const tx = tokenLock.connect(deployer.signer).cancelLock()
+          await expect(tx).revertedWith('Cannot cancel accepted contract')
+        })
+      })
+
       describe('Value transfer', function () {
         async function getState(tokenLock: GraphTokenLockSimple) {
           const beneficiaryAddress = await tokenLock.beneficiary()
