@@ -60,6 +60,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
 
     bool public isRevoked;
     bool public isInitialized;
+    bool public isAccepted;
     uint256 public releasedAmount;
 
     // -- Events --
@@ -68,6 +69,8 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
     event TokensWithdrawn(address indexed beneficiary, uint256 amount);
     event TokensRevoked(address indexed beneficiary, uint256 amount);
     event BeneficiaryChanged(address newBeneficiary);
+    event LockAccepted();
+    event LockCanceled();
 
     /**
      * @dev Only allow calls from the beneficiary of the contract
@@ -136,11 +139,31 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev Can only be called by the beneficiary
      * @param _newBeneficiary Address of the new beneficiary address
      */
-
     function changeBeneficiary(address _newBeneficiary) external onlyBeneficiary {
         require(_newBeneficiary != address(0), "Empty beneficiary");
         beneficiary = _newBeneficiary;
         emit BeneficiaryChanged(_newBeneficiary);
+    }
+
+    /**
+     * @notice Beneficiary accepts the lock, the owner cannot retrieve back the tokens
+     * @dev Can only be called by the beneficiary
+     */
+    function acceptLock() external onlyBeneficiary {
+        isAccepted = true;
+        emit LockAccepted();
+    }
+
+    /**
+     * @notice Owner cancel the lock and return the balance in the contract
+     * @dev Can only be called by the owner
+     */
+    function cancelLock() external onlyOwner {
+        require(isAccepted == false, "Cannot cancel accepted contract");
+
+        token.safeTransfer(owner(), currentBalance());
+
+        emit LockCanceled();
     }
 
     // -- Balances --
