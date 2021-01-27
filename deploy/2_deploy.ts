@@ -13,6 +13,11 @@ const { getAddress, parseEther, formatEther } = utils
 
 const logger = consola.create({})
 
+export const defaultOverrides: any = {
+  gasPrice: utils.parseUnits('25', 'gwei'), // auto
+  gasLimit: 2000000, // auto
+}
+
 const askConfirm = async (message: string) => {
   const res = await inquirer.prompt({
     name: 'confirm',
@@ -75,14 +80,14 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
     // Approve
     const grt = (await hre.ethers.getContractAt('GraphTokenMock', tokenAddress)) as GraphTokenMock
-    await grt.approve(managerDeploy.address, fundAmount)
+    await grt.approve(managerDeploy.address, fundAmount, defaultOverrides)
 
     // Deposit
     const manager = (await hre.ethers.getContractAt(
       'GraphTokenLockManager',
       managerDeploy.address,
     )) as GraphTokenLockManager
-    await manager.deposit(fundAmount)
+    await manager.deposit(fundAmount, defaultOverrides)
 
     logger.success('Done!')
   }

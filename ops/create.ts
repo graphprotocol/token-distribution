@@ -298,18 +298,19 @@ task('create-token-locks', 'Create token lock contracts from file')
     logger.success(`Total of ${entries.length} entries. All good!`)
 
     // Load deployed entries
-    const deployedEntries = loadResultData('/' + taskArgs.resultFile)
+    // THIS KEEPS FAILING, removed it from script
+    // const deployedEntries = loadResultData('/' + taskArgs.resultFile)
 
     // Populate entries
     entries = await populateEntries(hre, entries, manager.address, tokenAddress, taskArgs.ownerAddress)
 
     // Filter out already deployed ones
-    entries = entries.filter((entry) => !deployedEntries.find((deployedEntry) => deployedEntry.salt === entry.salt))
-    logger.success(`Total of ${entries.length} entries after removing already deployed. All good!`)
-    if (entries.length === 0) {
-      logger.warn('Nothing new to deploy')
-      process.exit(1)
-    }
+    // entries = entries.filter((entry) => !deployedEntries.find((deployedEntry) => deployedEntry.salt === entry.salt))
+    // logger.success(`Total of ${entries.length} entries after removing already deployed. All good!`)
+    // if (entries.length === 0) {
+    //   logger.warn('Nothing new to deploy')
+    //   process.exit(1)
+    // }
 
     // Dry running
     if (taskArgs.dryRun) {
