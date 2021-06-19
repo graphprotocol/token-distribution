@@ -10,19 +10,10 @@ import { GraphTokenLockWallet } from '../build/typechain/contracts/GraphTokenLoc
 import { GraphTokenLockManager } from '../build/typechain/contracts/GraphTokenLockManager'
 import { StakingMock } from '../build/typechain/contracts/StakingMock'
 
-import { StakingFactory } from '@graphprotocol/contracts/dist/typechain/contracts/StakingFactory'
+import { Staking__factory } from '@graphprotocol/contracts/dist/types/factories/Staking__factory'
 
 import { defaultInitArgs, Revocability, TokenLockParameters } from './config'
-import {
-  advanceTimeAndBlock,
-  getAccounts,
-  getContract,
-  toGRT,
-  formatGRT,
-  Account,
-  randomHexBytes,
-  advanceBlocks,
-} from './network'
+import { advanceTimeAndBlock, getAccounts, getContract, toGRT, Account, randomHexBytes, advanceBlocks } from './network'
 
 const { AddressZero, MaxUint256 } = constants
 
@@ -230,7 +221,7 @@ describe('GraphTokenLockWallet', () => {
 
     beforeEach(async () => {
       // Use the tokenLock contract as if it were the Staking contract
-      lockAsStaking = StakingFactory.connect(tokenLock.address, deployer.signer)
+      lockAsStaking = Staking__factory.connect(tokenLock.address, deployer.signer)
 
       // Add the staking contract as token destination
       await tokenLockManager.addTokenDestination(staking.address)
@@ -282,7 +273,7 @@ describe('GraphTokenLockWallet', () => {
       tokenLock = await initWithArgs({ ...initArgs, periods: 6, revocable: Revocability.Enabled })
 
       // Use the tokenLock contract as if it were the Staking contract
-      lockAsStaking = StakingFactory.connect(tokenLock.address, deployer.signer)
+      lockAsStaking = Staking__factory.connect(tokenLock.address, deployer.signer)
 
       // Add the staking contract as token destination
       await tokenLockManager.addTokenDestination(staking.address)
