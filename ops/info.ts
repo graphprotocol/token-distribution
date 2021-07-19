@@ -3,7 +3,6 @@ import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 
 interface DeployedTokenLockWallet {
-  id: string
   beneficiary: string
   managedAmount: string
   periods: number
@@ -12,7 +11,9 @@ interface DeployedTokenLockWallet {
   revocable: string
   releaseStartTime: string
   vestingCliffTime: string
+  id: string
   initHash: string
+  txHash: string
   tokensReleased: string
   tokensWithdrawn: string
 }
@@ -38,6 +39,7 @@ async function getWallets(skip = 0): Promise<DeployedTokenLockWallet> {
       releaseStartTime
       vestingCliffTime
       initHash
+      txHash
       tokensReleased
       tokensWithdrawn
     }
@@ -66,7 +68,6 @@ task('contracts:list', 'Create token lock contracts from file').setAction(async 
   const allWallets = (await getAllItems(getWallets)) as DeployedTokenLockWallet[]
 
   const headers = [
-    'id',
     'beneficiary',
     'managedAmount',
     'startTime',
@@ -75,14 +76,15 @@ task('contracts:list', 'Create token lock contracts from file').setAction(async 
     'revocable',
     'releaseStartTime',
     'vestingCliffTime',
+    'contractAddress',
     'initHash',
+    'txHash',
     'tokensReleased',
     'tokensWithdrawn',
   ].join(',')
   console.log(headers)
   for (const wallet of allWallets) {
     const csv = [
-      wallet.id,
       wallet.beneficiary,
       toInt(wallet.managedAmount),
       wallet.startTime,
@@ -91,7 +93,9 @@ task('contracts:list', 'Create token lock contracts from file').setAction(async 
       wallet.revocable,
       wallet.releaseStartTime,
       wallet.vestingCliffTime,
+      wallet.id,
       wallet.initHash,
+      wallet.txHash,
       toInt(wallet.tokensReleased),
       toInt(wallet.tokensWithdrawn),
     ].join(',')

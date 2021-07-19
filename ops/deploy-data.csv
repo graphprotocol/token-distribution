@@ -1,3 +1,1 @@
 beneficiary,managedAmount,startTime,endTime,periods,revocable,releaseStartTime,vestingCliffTime
-...,1000000,1607460840,1607482800,6,1,1607472000,0
-...,2000000,1607460840,1607482800,1,1,0,0

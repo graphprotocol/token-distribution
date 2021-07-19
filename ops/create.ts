@@ -339,8 +339,9 @@ task('create-token-locks', 'Create token lock contracts from file')
 
     // Deploy contracts
     const accounts = await hre.ethers.getSigners()
-    const queue = new PQueue({ concurrency: 6 })
     const nonceManager = new NonceManager(accounts[0]) // Use NonceManager to send concurrent txs
+
+    const queue = new PQueue({ concurrency: 6 })
 
     for (const entry of entries) {
       queue.add(async () => {
@@ -348,28 +349,32 @@ task('create-token-locks', 'Create token lock contracts from file')
         logger.info(`Creating contract...`)
         logger.log(prettyConfigEntry(entry))
 
-        // Deploy
-        const tx = await manager
-          .connect(nonceManager)
-          .createTokenLockWallet(
-            entry.owner,
-            entry.beneficiary,
-            entry.managedAmount,
-            entry.startTime,
-            entry.endTime,
-            entry.periods,
-            entry.releaseStartTime,
-            entry.vestingCliffTime,
-            entry.revocable,
-          )
-        const receipt = await waitTransaction(tx)
-        const event: Event = receipt.events[0]
-        const contractAddress = event.args['proxy']
-        logger.success(`Deployed: ${contractAddress} (${entry.salt})`)
+        try {
+          // Deploy
+          const tx = await manager
+            .connect(nonceManager)
+            .createTokenLockWallet(
+              entry.owner,
+              entry.beneficiary,
+              entry.managedAmount,
+              entry.startTime,
+              entry.endTime,
+              entry.periods,
+              entry.releaseStartTime,
+              entry.vestingCliffTime,
+              entry.revocable,
+            )
+          const receipt = await waitTransaction(tx)
+          const event: Event = receipt.events[0]
+          const contractAddress = event.args['proxy']
+          logger.success(`Deployed: ${contractAddress} (${entry.salt})`)
 
-        // Save result
-        const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
-        saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+          // Save result
+          const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
+          saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+        } catch (err) {
+          logger.error(err)
+        }
       })
     }
     await queue.onIdle()
@@ -425,29 +430,33 @@ task('create-token-locks-simple', 'Create token lock contracts from file')
       logger.info(`Creating contract...`)
       logger.log(prettyConfigEntry(entry))
 
-      const tokenLockSimpleFactory = await getContractFactory(hre, 'GraphTokenLockSimple')
-      const tokenLockSimpleDeployment = await tokenLockSimpleFactory.connect(deployer).deploy()
-      const tokenLockSimple = await tokenLockSimpleDeployment.deployed()
-      logger.success(`Deployed: ${tokenLockSimple.address}`)
+      try {
+        const tokenLockSimpleFactory = await getContractFactory(hre, 'GraphTokenLockSimple')
+        const tokenLockSimpleDeployment = await tokenLockSimpleFactory.connect(deployer).deploy()
+        const tokenLockSimple = await tokenLockSimpleDeployment.deployed()
+        logger.success(`Deployed: ${tokenLockSimple.address}`)
 
-      logger.log('Setting up...')
-      const tx = await tokenLockSimple.initialize(
-        ownerAddress,
-        entry.beneficiary,
-        tokenAddress,
-        entry.managedAmount,
-        entry.startTime,
-        entry.endTime,
-        entry.periods,
-        entry.releaseStartTime,
-        entry.vestingCliffTime,
-        entry.revocable,
-      )
-      await waitTransaction(tx)
+        logger.log('Setting up...')
+        const tx = await tokenLockSimple.initialize(
+          ownerAddress,
+          entry.beneficiary,
+          tokenAddress,
+          entry.managedAmount,
+          entry.startTime,
+          entry.endTime,
+          entry.periods,
+          entry.releaseStartTime,
+          entry.vestingCliffTime,
+          entry.revocable,
+        )
+        await waitTransaction(tx)
 
-      // Save result
-      const deployResult = { ...entry, txHash: tx.hash, salt: '', contractAddress: tokenLockSimple.address }
-      saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+        // Save result
+        const deployResult = { ...entry, txHash: tx.hash, salt: '', contractAddress: tokenLockSimple.address }
+        saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+      } catch (err) {
+        logger.log(err)
+      }
     }
   })
 
