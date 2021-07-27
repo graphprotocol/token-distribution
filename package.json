@@ -1,6 +1,6 @@
 {
   "name": "graph-token-dist",
-  "version": "0.3.1",
+  "version": "0.3.4",
   "description": "Graph Token Distribution",
   "main": "index.js",
   "scripts": {
