@@ -92,12 +92,24 @@ const config = {
     cache: './cache',
     artifacts: './build/artifacts',
   },
-  solidity: {
-    version: '0.7.3',
+  settings: {
     optimizer: {
       enabled: true,
       runs: 200,
     },
+  },
+  solidity: {
+    compilers: [
+      {
+        version: '0.7.3',
+        settings: {
+          optimizer: {
+            enabled: false,
+            runs: 200,
+          },
+        },
+      },
+    ],
   },
   defaultNetwork: 'hardhat',
   networks: {
