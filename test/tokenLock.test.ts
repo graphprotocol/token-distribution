@@ -635,6 +635,28 @@ describe('GraphTokenLockSimple', () => {
             await expect(tx2).emit(tokenLock, 'TokensWithdrawn').withArgs(beneficiary1.address, surplusAmount.sub(1))
           })
 
+          it('should withdraw surplus balance even after the contract was revoked', async function () {
+            if (initArgs.revocable === Revocability.Enabled) {
+              // Setup
+              const managedAmount = await tokenLock.managedAmount()
+              const surplusAmount = toGRT('100')
+              const totalAmount = managedAmount.add(surplusAmount)
+              await grt.connect(deployer.signer).transfer(tokenLock.address, totalAmount)
+
+              // Vest some amount
+              await advanceToReleasable(tokenLock)
+              await advancePeriods(tokenLock, 2) // fwd two periods
+
+              // Revoke
+              await tokenLock.connect(beneficiary1.signer).release()
+              await tokenLock.connect(deployer.signer).revoke()
+
+              // Should withdraw
+              const tx2 = tokenLock.connect(beneficiary1.signer).withdrawSurplus(surplusAmount)
+              await expect(tx2).emit(tokenLock, 'TokensWithdrawn').withArgs(beneficiary1.address, surplusAmount)
+            }
+          })
+
           it('reject withdraw if not the beneficiary', async function () {
             await grt.connect(deployer.signer).transfer(tokenLock.address, toGRT('100'))
 
