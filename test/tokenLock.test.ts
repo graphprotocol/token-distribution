@@ -635,7 +635,7 @@ describe('GraphTokenLockSimple', () => {
             await expect(tx2).emit(tokenLock, 'TokensWithdrawn').withArgs(beneficiary1.address, surplusAmount.sub(1))
           })
 
-          it('should withdraw surplus balance even after the contract was revoked', async function () {
+          it('should withdraw surplus balance even after the contract was released->revoked', async function () {
             if (initArgs.revocable === Revocability.Enabled) {
               // Setup
               const managedAmount = await tokenLock.managedAmount()
@@ -647,9 +647,35 @@ describe('GraphTokenLockSimple', () => {
               await advanceToReleasable(tokenLock)
               await advancePeriods(tokenLock, 2) // fwd two periods
 
-              // Revoke
+              // Release / Revoke
               await tokenLock.connect(beneficiary1.signer).release()
               await tokenLock.connect(deployer.signer).revoke()
+
+              // Should withdraw
+              const tx2 = tokenLock.connect(beneficiary1.signer).withdrawSurplus(surplusAmount)
+              await expect(tx2).emit(tokenLock, 'TokensWithdrawn').withArgs(beneficiary1.address, surplusAmount)
+
+              // Contract must have no balance after all actions
+              const balance = await grt.balanceOf(tokenLock.address)
+              expect(balance).eq(0)
+            }
+          })
+
+          it('should withdraw surplus balance even after the contract was revoked->released', async function () {
+            if (initArgs.revocable === Revocability.Enabled) {
+              // Setup
+              const managedAmount = await tokenLock.managedAmount()
+              const surplusAmount = toGRT('100')
+              const totalAmount = managedAmount.add(surplusAmount)
+              await grt.connect(deployer.signer).transfer(tokenLock.address, totalAmount)
+
+              // Vest some amount
+              await advanceToReleasable(tokenLock)
+              await advancePeriods(tokenLock, 2) // fwd two periods
+
+              // Release / Revoke
+              await tokenLock.connect(deployer.signer).revoke()
+              await tokenLock.connect(beneficiary1.signer).release()
 
               // Should withdraw
               const tx2 = tokenLock.connect(beneficiary1.signer).withdrawSurplus(surplusAmount)
