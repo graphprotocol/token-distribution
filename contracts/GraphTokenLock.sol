@@ -62,6 +62,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
     bool public isInitialized;
     bool public isAccepted;
     uint256 public releasedAmount;
+    uint256 public revokedAmount;
 
     // -- Events --
 
@@ -172,7 +173,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @notice Returns the amount of tokens currently held by the contract
      * @return Tokens held in the contract
      */
-    function currentBalance() public override view returns (uint256) {
+    function currentBalance() public view override returns (uint256) {
         return token.balanceOf(address(this));
     }
 
@@ -182,7 +183,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @notice Returns the current block timestamp
      * @return Current block timestamp
      */
-    function currentTime() public override view returns (uint256) {
+    function currentTime() public view override returns (uint256) {
         return block.timestamp;
     }
 
@@ -190,7 +191,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @notice Gets duration of contract from start to end in seconds
      * @return Amount of seconds from contract startTime to endTime
      */
-    function duration() public override view returns (uint256) {
+    function duration() public view override returns (uint256) {
         return endTime.sub(startTime);
     }
 
@@ -199,7 +200,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev Returns zero if called before conctract starTime
      * @return Seconds elapsed from contract startTime
      */
-    function sinceStartTime() public override view returns (uint256) {
+    function sinceStartTime() public view override returns (uint256) {
         uint256 current = currentTime();
         if (current <= startTime) {
             return 0;
@@ -211,7 +212,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @notice Returns amount available to be released after each period according to schedule
      * @return Amount of tokens available after each period
      */
-    function amountPerPeriod() public override view returns (uint256) {
+    function amountPerPeriod() public view override returns (uint256) {
         return managedAmount.div(periods);
     }
 
@@ -219,7 +220,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @notice Returns the duration of each period in seconds
      * @return Duration of each period in seconds
      */
-    function periodDuration() public override view returns (uint256) {
+    function periodDuration() public view override returns (uint256) {
         return duration().div(periods);
     }
 
@@ -227,7 +228,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @notice Gets the current period based on the schedule
      * @return A number that represents the current period
      */
-    function currentPeriod() public override view returns (uint256) {
+    function currentPeriod() public view override returns (uint256) {
         return sinceStartTime().div(periodDuration()).add(MIN_PERIOD);
     }
 
@@ -235,7 +236,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @notice Gets the number of periods that passed since the first period
      * @return A number of periods that passed since the schedule started
      */
-    function passedPeriods() public override view returns (uint256) {
+    function passedPeriods() public view override returns (uint256) {
         return currentPeriod().sub(MIN_PERIOD);
     }
 
@@ -246,7 +247,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev Implements the step-by-step schedule based on periods for available tokens
      * @return Amount of tokens available according to the schedule
      */
-    function availableAmount() public override view returns (uint256) {
+    function availableAmount() public view override returns (uint256) {
         uint256 current = currentTime();
 
         // Before contract start no funds are available
@@ -268,7 +269,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev Similar to available amount, but is fully vested when contract is non-revocable
      * @return Amount of tokens already vested
      */
-    function vestedAmount() public override view returns (uint256) {
+    function vestedAmount() public view override returns (uint256) {
         // If non-revocable it is fully vested
         if (revocable == Revocability.Disabled) {
             return managedAmount;
@@ -287,7 +288,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev Considers the schedule and takes into account already released tokens
      * @return Amount of tokens ready to be released
      */
-    function releasableAmount() public override view returns (uint256) {
+    function releasableAmount() public view override returns (uint256) {
         // If a release start time is set no tokens are available for release before this date
         // If not set it follows the default schedule and tokens are available on
         // the first period passed
@@ -311,8 +312,8 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev Does not consider schedule but just global amounts tracked
      * @return Amount of outstanding tokens for the lifetime of the contract
      */
-    function totalOutstandingAmount() public override view returns (uint256) {
-        return managedAmount.sub(releasedAmount);
+    function totalOutstandingAmount() public view override returns (uint256) {
+        return managedAmount.sub(releasedAmount).sub(revokedAmount);
     }
 
     /**
@@ -320,7 +321,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev All funds over outstanding amount is considered surplus that can be withdrawn by beneficiary
      * @return Amount of tokens considered as surplus
      */
-    function surplusAmount() public override view returns (uint256) {
+    function surplusAmount() public view override returns (uint256) {
         uint256 balance = currentBalance();
         uint256 outstandingAmount = totalOutstandingAmount();
         if (balance > outstandingAmount) {
@@ -371,6 +372,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
         uint256 unvestedAmount = managedAmount.sub(vestedAmount());
         require(unvestedAmount > 0, "No available unvested amount");
 
+        revokedAmount = revokedAmount.add(unvestedAmount);
         isRevoked = true;
 
         token.safeTransfer(owner(), unvestedAmount);

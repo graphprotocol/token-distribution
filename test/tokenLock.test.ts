@@ -654,6 +654,10 @@ describe('GraphTokenLockSimple', () => {
               // Should withdraw
               const tx2 = tokenLock.connect(beneficiary1.signer).withdrawSurplus(surplusAmount)
               await expect(tx2).emit(tokenLock, 'TokensWithdrawn').withArgs(beneficiary1.address, surplusAmount)
+
+              // Contract must have no balance after all actions
+              const balance = await grt.balanceOf(tokenLock.address)
+              expect(balance).eq(0)
             }
           })
 
