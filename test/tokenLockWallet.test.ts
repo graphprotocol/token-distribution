@@ -90,6 +90,22 @@ describe('GraphTokenLockWallet', () => {
 
   let initArgs: TokenLockParameters
 
+  async function getState(tokenLock) {
+    const beneficiaryAddress = await tokenLock.beneficiary()
+    const ownerAddress = await tokenLock.owner()
+    return {
+      beneficiaryBalance: await grt.balanceOf(beneficiaryAddress),
+      contractBalance: await grt.balanceOf(tokenLock.address),
+      ownerBalance: await grt.balanceOf(ownerAddress),
+      releasableAmount: await tokenLock.releasableAmount(),
+      releasedAmount: await tokenLock.releasedAmount(),
+      revokedAmount: await tokenLock.revokedAmount(),
+      surplusAmount: await tokenLock.surplusAmount(),
+      managedAmount: await tokenLock.managedAmount(),
+      usedAmount: await tokenLock.usedAmount(),
+    }
+  }
+
   const initWithArgs = async (args: TokenLockParameters): Promise<GraphTokenLockWallet> => {
     const tx = await tokenLockManager.createTokenLockWallet(
       args.owner,
@@ -290,6 +306,50 @@ describe('GraphTokenLockWallet', () => {
       const stakeAmount = toGRT('100')
       const tx = lockAsStaking.connect(beneficiary.signer).stake(stakeAmount)
       await expect(tx).revertedWith('Cannot use more tokens than vested amount')
+    })
+
+    it('should release considering what is used in the protocol', async function () {
+      // Move to have some vested periods
+      await advanceToStart(tokenLock)
+      await advancePeriods(tokenLock, 2)
+
+      // Get amount that can be released with no used tokens yet
+      const releasableAmount = await tokenLock.releasableAmount()
+
+      // Use tokens in the protocol
+      const stakeAmount = toGRT('100')
+      await lockAsStaking.connect(beneficiary.signer).stake(stakeAmount)
+
+      // Release - should take into account used tokens
+      const tx = await tokenLock.connect(beneficiary.signer).release()
+      await expect(tx)
+        .emit(tokenLock, 'TokensReleased')
+        .withArgs(beneficiary.address, releasableAmount.sub(stakeAmount))
+
+      // Revoke should work
+      await tokenLock.connect(deployer.signer).revoke()
+    })
+
+    it('should release considering what is used in the protocol (even if most is used)', async function () {
+      // Move to have some vested periods
+      await advanceToStart(tokenLock)
+      await advancePeriods(tokenLock, 2)
+
+      // Get amount that can be released with no used tokens yet
+      const releasableAmount = await tokenLock.releasableAmount()
+
+      // Use tokens in the protocol
+      const stakeAmount = (await tokenLock.availableAmount()).sub(toGRT('1'))
+      await lockAsStaking.connect(beneficiary.signer).stake(stakeAmount)
+
+      // Release - should take into account used tokens
+      const tx = await tokenLock.connect(beneficiary.signer).release()
+      await expect(tx)
+        .emit(tokenLock, 'TokensReleased')
+        .withArgs(beneficiary.address, releasableAmount.sub(stakeAmount))
+
+      // Revoke should work
+      await tokenLock.connect(deployer.signer).revoke()
     })
 
     it('should allow to get profit from the protocol', async function () {

@@ -288,7 +288,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
      * @dev Considers the schedule and takes into account already released tokens
      * @return Amount of tokens ready to be released
      */
-    function releasableAmount() public view override returns (uint256) {
+    function releasableAmount() public view virtual override returns (uint256) {
         // If a release start time is set no tokens are available for release before this date
         // If not set it follows the default schedule and tokens are available on
         // the first period passed
