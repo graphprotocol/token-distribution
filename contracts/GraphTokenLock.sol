@@ -372,7 +372,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
         uint256 unvestedAmount = managedAmount.sub(vestedAmount());
         require(unvestedAmount > 0, "No available unvested amount");
 
-        revokedAmount = revokedAmount.add(unvestedAmount);
+        revokedAmount = unvestedAmount;
         isRevoked = true;
 
         token.safeTransfer(owner(), unvestedAmount);
