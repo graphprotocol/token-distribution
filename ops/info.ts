@@ -1,3 +1,4 @@
+import chalk from 'chalk'
 import axios from 'axios'
 import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
@@ -41,12 +42,98 @@ const toInt = (s) => parseInt(s) / 1e18
 const toBN = (s: string): BigNumber => BigNumber.from(s)
 const formatGRT = (n: BigNumber): string => utils.formatEther(n)
 const parseGRT = (n: string): BigNumber => utils.parseEther(n)
+const toWei = (n: string): string => parseGRT(n).toString()
 const prettyDate = (date: string) => {
   const n = parseInt(date)
   if (n === 0) return '0'
   const d = new Date(n * 1000)
   return d.toLocaleString()
 }
+
+// Fixed data
+
+const vestingListExchanges: DeployedTokenLockWallet[] = [
+  {
+    beneficiary: '0x0000000000000000000000000000000000000000',
+    managedAmount: toWei('50000000'),
+    periods: 48,
+    startTime: '1522602000',
+    endTime: '1648832400',
+    revocable: 'Enabled',
+    releaseStartTime: '1627146000',
+    vestingCliffTime: '0',
+    id: '0x0000000000000000000000000000000000000000',
+    initHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    txHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    manager: '0x0000000000000000000000000000000000000000',
+    tokensReleased: '0',
+    tokensWithdrawn: '0',
+  },
+  {
+    beneficiary: '0x0000000000000000000000000000000000000000',
+    managedAmount: toWei('8000000'),
+    periods: 1,
+    startTime: '1608224400',
+    endTime: '1627146000',
+    revocable: 'Disabled',
+    releaseStartTime: '0',
+    vestingCliffTime: '0',
+    id: '0x0000000000000000000000000000000000000000',
+    initHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    txHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    manager: '0x0000000000000000000000000000000000000000',
+    tokensReleased: '0',
+    tokensWithdrawn: '0',
+  },
+  {
+    beneficiary: '0x0000000000000000000000000000000000000000',
+    managedAmount: toWei('59000000'),
+    periods: 48,
+    startTime: '1543683600',
+    endTime: '1669914000',
+    revocable: 'Enabled',
+    releaseStartTime: '1627146000',
+    vestingCliffTime: '0',
+    id: '0x0000000000000000000000000000000000000000',
+    initHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    txHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    manager: '0x0000000000000000000000000000000000000000',
+    tokensReleased: '0',
+    tokensWithdrawn: '0',
+  },
+  {
+    beneficiary: '0x0000000000000000000000000000000000000000',
+    managedAmount: toWei('4000000'),
+    periods: 1,
+    startTime: '1608224400',
+    endTime: '1627146000',
+    revocable: 'Disabled',
+    releaseStartTime: '0',
+    vestingCliffTime: '0',
+    id: '0x0000000000000000000000000000000000000000',
+    initHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    txHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    manager: '0x0000000000000000000000000000000000000000',
+    tokensReleased: '0',
+    tokensWithdrawn: '0',
+  },
+  {
+    beneficiary: '0x0000000000000000000000000000000000000000',
+    managedAmount: toWei('50000000'),
+    periods: 48,
+    startTime: '1527872400',
+    endTime: '1654102800',
+    revocable: 'Enabled',
+    releaseStartTime: '1627146000',
+    vestingCliffTime: '0',
+    id: '0x0000000000000000000000000000000000000000',
+    initHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    txHash: '0x0000000000000000000000000000000000000000000000000000000000000000',
+    manager: '0x0000000000000000000000000000000000000000',
+    tokensReleased: '0',
+    tokensWithdrawn: '0',
+  },
+]
 
 // Network
 
@@ -268,20 +355,55 @@ task('contracts:summary', 'Show summary of balances').setAction(async (_, hre: H
 
   // Network data
   const graphNetwork = await getNetworkData()
-  const totalFixed = parseGRT('1622543820') // TODO: read this data from contract
-  const totalFixedAvailable = parseGRT('175051124') // TODO: read this data from contract
-  const totalLocked = summary.totalManaged.add(totalFixed).sub(summary.totalAvailable).sub(totalFixedAvailable)
+
+  // Foundation and Edge & Node contracts
+  const vestingEAN = await hre.ethers.getContractAt(
+    'GraphTokenLockSimple',
+    '0x5785176048BEB00DcB6eC84A604d76E30E0666db',
+  )
+  const vestingGRT = await hre.ethers.getContractAt(
+    'GraphTokenLockSimple',
+    '0x32Ec7A59549b9F114c9D7d8b21891d91Ae7F2ca1',
+  )
+  const [managedAmountEAN, managedAmountGRT, availableAmountEAN, availableAmountGRT] = await Promise.all([
+    await vestingEAN.managedAmount(),
+    await vestingGRT.managedAmount(),
+    await vestingEAN.availableAmount(),
+    await vestingGRT.availableAmount(),
+  ])
+
+  // Exchange locked
+  let managedAmountExchanges = vestingListExchanges
+    .map((vesting) => toBN(vesting.managedAmount))
+    .reduce((a, b) => a.add(b), toBN('0'))
+  let availableAmountExchanges = vestingListExchanges
+    .map((vesting) => getAvailableAmount(vesting))
+    .reduce((a, b) => a.add(b), toBN('0'))
+  managedAmountExchanges = managedAmountExchanges.add(toWei('283333334'))
+  availableAmountExchanges = availableAmountExchanges.add(toWei('150000000'))
 
   // General summary
-  console.log('General Summary')
+  const totalSupply = toBN(graphNetwork.totalSupply)
+  const totalLockedAll = summary.totalManaged.sub(summary.totalAvailable)
+  const totalLockedEAN = managedAmountEAN.sub(availableAmountEAN)
+  const totalLockedGRT = managedAmountGRT.sub(availableAmountGRT)
+  const totalLockedExchanges = managedAmountExchanges.sub(availableAmountExchanges)
+  const totalLocked = totalLockedAll.add(totalLockedEAN).add(totalLockedGRT).add(totalLockedExchanges)
+
+  console.log(chalk.whiteBright('General Summary'))
   console.log('---------------')
-  console.log('= Total Supply:', formatGRT(toBN(graphNetwork.totalSupply)))
-  console.log('> Total Free:  ', formatGRT(toBN(graphNetwork.totalSupply).sub(totalLocked)))
+  console.log('= Total Supply:\t', formatGRT(totalSupply))
+  console.log('- Total Locked:\t', formatGRT(totalLocked))
+  console.log('-- General:\t', formatGRT(totalLockedAll))
+  console.log('-- Edge & Node:\t', formatGRT(totalLockedEAN))
+  console.log('-- Foundation:\t', formatGRT(totalLockedGRT))
+  console.log('-- Exchanges:\t', formatGRT(totalLockedExchanges))
+  console.log('- Total Free:\t', formatGRT(totalSupply.sub(totalLocked)))
   console.log('')
   summary.show()
 
   // Summary of revocable contracts
-  console.log('\nRevocable Summary')
+  console.log(chalk.whiteBright('\nRevocable Summary'))
   console.log('-----------------')
   revocableSummary.show(true)
 })
