@@ -4,9 +4,12 @@ import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber, Contract, utils } from 'ethers'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import CoinGecko from 'coingecko-api'
 
 const TOKEN_DIST_SUBGRAPH = 'https://api.thegraph.com/subgraphs/name/graphprotocol/token-distribution'
 const NETWORK_SUBGRAPH = 'https://api.thegraph.com/subgraphs/name/graphprotocol/graph-network-mainnet'
+
+const CoinGeckoClient = new CoinGecko()
 
 // Types
 
@@ -41,14 +44,16 @@ interface GraphNetwork {
 const toInt = (s) => parseInt(s) / 1e18
 const toBN = (s: string): BigNumber => BigNumber.from(s)
 const formatGRT = (n: BigNumber): string => utils.formatEther(n)
+const formatRoundGRT = (n: BigNumber): string => formatGRT(n).split('.')[0]
 const parseGRT = (n: string): BigNumber => utils.parseEther(n)
 const toWei = (n: string): string => parseGRT(n).toString()
 const prettyDate = (date: string) => {
   const n = parseInt(date)
   if (n === 0) return '0'
   const d = new Date(n * 1000)
-  return d.toLocaleString()
+  return d.toISOString().replace(/T/, ' ').replace(/\..+/, '')
 }
+const now = () => +new Date() / 1000
 
 // Fixed data
 
@@ -260,26 +265,26 @@ class TokenSummary {
 
   private showContracts(contracts: ContractTokenData[]) {
     for (const contractTokenData of contracts) {
-      console.log(`  ${contractTokenData.address}: ${formatGRT(contractTokenData.tokenAmount)}`)
+      console.log(`  ${contractTokenData.address}: ${formatRoundGRT(contractTokenData.tokenAmount)}`)
     }
   }
 
   public show(detail = false) {
-    console.log(`Managed: ${formatGRT(this.totalManaged)} [n:${this.totalCount}]`)
+    console.log(`= Managed: ${formatRoundGRT(this.totalManaged)} [n:${this.totalCount}]`)
     console.log(
       `- Available (${this.totalAvailable.mul(100).div(this.totalManaged)}%):`,
-      formatGRT(this.totalAvailable),
+      formatRoundGRT(this.totalAvailable),
     )
     console.log(
-      `-- Released (${this.totalReleased.mul(100).div(this.totalAvailable)}%): ${formatGRT(this.totalReleased)} [n:${
-        this.contractsReleased.length
-      }]`,
+      `-- Released (${this.totalReleased.mul(100).div(this.totalAvailable)}%): ${formatRoundGRT(
+        this.totalReleased,
+      )} [n:${this.contractsReleased.length}]`,
     )
     if (detail) {
       this.showContracts(this.contractsReleased)
     }
     if (this.totalUsed.gt(0)) {
-      console.log(`- Used ${formatGRT(this.totalUsed)} [n:${this.contractsInProtocol.length}]`)
+      console.log(`- Used ${formatRoundGRT(this.totalUsed)} [n:${this.contractsInProtocol.length}]`)
       if (detail) {
         this.showContracts(this.contractsInProtocol)
       }
@@ -327,7 +332,7 @@ task('contracts:list', 'List all token lock contracts').setAction(async () => {
       wallet.manager,
       toInt(wallet.tokensReleased),
       toInt(wallet.tokensWithdrawn),
-      formatGRT(getAvailableAmount(wallet)),
+      formatRoundGRT(getAvailableAmount(wallet)),
     ].join(',')
     console.log(csv)
   }
@@ -392,20 +397,20 @@ task('contracts:summary', 'Show summary of balances').setAction(async (_, hre: H
 
   console.log(chalk.whiteBright('General Summary'))
   console.log('---------------')
-  console.log('= Total Supply:\t', formatGRT(totalSupply))
-  console.log('- Total Locked:\t', formatGRT(totalLocked))
-  console.log('-- General:\t', formatGRT(totalLockedAll))
-  console.log('-- Edge & Node:\t', formatGRT(totalLockedEAN))
-  console.log('-- Foundation:\t', formatGRT(totalLockedGRT))
-  console.log('-- Exchanges:\t', formatGRT(totalLockedExchanges))
-  console.log('- Total Free:\t', formatGRT(totalSupply.sub(totalLocked)))
+  console.log('= Total Supply:\t', formatRoundGRT(totalSupply))
+  console.log('- Total Locked:\t', formatRoundGRT(totalLocked))
+  console.log('-- General:\t', formatRoundGRT(totalLockedAll))
+  console.log('-- Edge & Node:\t', formatRoundGRT(totalLockedEAN), '/', formatRoundGRT(managedAmountEAN))
+  console.log('-- Foundation:\t', formatRoundGRT(totalLockedGRT), '/', formatRoundGRT(managedAmountGRT))
+  console.log('-- Exchanges:\t', formatRoundGRT(totalLockedExchanges))
+  console.log('- Total Free:\t', formatRoundGRT(totalSupply.sub(totalLocked)))
   console.log('')
   summary.show()
 
   // Summary of revocable contracts
   console.log(chalk.whiteBright('\nRevocable Summary'))
   console.log('-----------------')
-  revocableSummary.show(true)
+  revocableSummary.show(false)
 })
 
 task('contracts:show', 'Show info about an specific contract')
@@ -434,7 +439,7 @@ task('contracts:show', 'Show info about an specific contract')
       await contract.amountPerPeriod(),
       await contract.surplusAmount(),
       await contract.vestedAmount(),
-    ]).then((results) => results.map((e) => formatGRT(e)))
+    ]).then((results) => results.map((e) => formatRoundGRT(e)))
 
     const [startTime, endTime, periods, currentPeriod, periodDuration, revocable, owner, manager] = await Promise.all([
       contract.startTime(),
@@ -458,7 +463,7 @@ task('contracts:show', 'Show info about an specific contract')
     console.log(`  Revocable: ${revocable}`)
     console.log('  (=) Managed:', managedAmount)
     console.log('   - Available: ', availableAmount)
-    console.log('   - Unvested: ', formatGRT(parseGRT(managedAmount).sub(parseGRT(vestedAmount))))
+    console.log('   - Unvested: ', formatRoundGRT(parseGRT(managedAmount).sub(parseGRT(vestedAmount))))
     console.log('   - Releaseable: ', releasableAmount)
     console.log('\n## Position')
     console.log('  (*) Managed:', managedAmount)
@@ -467,3 +472,73 @@ task('contracts:show', 'Show info about an specific contract')
     console.log('  (>) Used: ', usedAmount)
     console.log('  (+) Surplus: ', surplusAmount)
   })
+
+interface CoinPrice {
+  date: number
+  price: number
+}
+
+async function getCoinPrice(timeIndex: number): Promise<CoinPrice> {
+  // Scan for a price close to the desired datetime
+  const buffer = 1800
+  const params = {
+    from: timeIndex - buffer,
+    to: timeIndex + buffer,
+  }
+  const coin = await CoinGeckoClient.coins.fetchMarketChartRange('the-graph', params)
+  const priceInstance = coin.data.prices[0]
+  return {
+    date: priceInstance[0] / 1000,
+    price: priceInstance[1],
+  }
+}
+
+task('contracts:schedule', 'Show schedule of a set of contracts').setAction(
+  async (_, hre: HardhatRuntimeEnvironment) => {
+    const contractAddresses = [
+      '0xc2525d1326c0d38c9fae42a663b9ec32a6338948',
+      '0xc4307eb08c3fd10c1f7de94e6db34371df18f06f',
+      '0x4c57e626f38a95220eefa8fc2f44ef5e4bbc7b9e',
+      '0x56f256fdd8899fd3f08b731431c61e2df8f99625',
+      '0x60abb93f12ebbbfd84c8cb52df8c7b3c26aea170',
+      '0x1d535b18ee9b8453cfef723ecd96720c3322de8c',
+      '0x27c26eed0a9e09d9662eb154f52b55153d2ed705',
+    ]
+
+    // Print release schedule for every contract
+    for (const contractAddress of contractAddresses) {
+      // Read contract data
+      const contract = await hre.ethers.getContractAt('GraphTokenLockWallet', contractAddress)
+      const [startTime, endTime, periods, amountPerPeriod] = await Promise.all([
+        contract.startTime(),
+        contract.endTime(),
+        contract.periods(),
+        contract.amountPerPeriod(),
+      ])
+
+      // Scan every period
+      const duration = endTime.sub(startTime)
+      const durationPerPeriod = duration.div(periods)
+      for (let i = 1; i <= periods; i++) {
+        const timeIndex = startTime.add(durationPerPeriod.mul(i))
+        const output = [contractAddress, i, prettyDate(timeIndex.toString()), formatGRT(amountPerPeriod)]
+        if (timeIndex < now()) {
+          try {
+            const coinPrice = await getCoinPrice(timeIndex.toNumber())
+            output.push(coinPrice.price)
+            output.push(prettyDate(coinPrice.date.toString()))
+            console.log(output.join(','))
+          } catch (e) {
+            console.log(e)
+            console.log('Error while fetching coin price')
+            console.log(output)
+            break
+          }
+        } else {
+          output.push('')
+          output.push('')
+        }
+      }
+    }
+  },
+)
