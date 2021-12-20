@@ -288,6 +288,14 @@ task('create-token-locks', 'Create token lock contracts from file')
     logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
     logger.log(`> GraphTokenLockManager: ${manager.address}`)
 
+    // Deployment can only happen through the Manager owner
+    const tokenLockManagerOwner = await manager.owner()
+    const { deployer } = await hre.getNamedAccounts()
+    if (tokenLockManagerOwner !== deployer) {
+      logger.error('Only the owner can deploy token locks')
+      process.exit(1)
+    }
+
     // Load config entries
     logger.log('')
     logger.info('Verifying deployment data...')
