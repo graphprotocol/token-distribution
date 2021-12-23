@@ -161,7 +161,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @notice Forward authorized contract calls to protocol contracts
      * @dev Fallback function can be called by the beneficiary only if function call is allowed
      */
-    fallback() external payable {
+    fallback() external {
         // Only beneficiary can forward calls
         require(msg.sender == beneficiary, "Unauthorized caller");
 
