@@ -134,6 +134,9 @@ contract GraphTokenLockWallet is GraphTokenLock {
             return super.releasableAmount();
         }
 
+        // -- Revocability enabled logic
+        // This needs to deal with additional considerations for when tokens are used in the protocol
+
         // If a release start time is set no tokens are available for release before this date
         // If not set it follows the default schedule and tokens are available on
         // the first period passed
@@ -148,6 +151,8 @@ contract GraphTokenLockWallet is GraphTokenLock {
         }
 
         // A beneficiary can never have more releasable tokens than the contract balance
+        // We consider the `usedAmount` in the protocol as part of the calculations
+        // the beneficiary should not release funds that are used.
         uint256 releasable = availableAmount().sub(releasedAmount).sub(usedAmount);
         return MathUtils.min(currentBalance(), releasable);
     }
