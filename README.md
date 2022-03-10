@@ -58,6 +58,54 @@ The Manager supports creating TokenLock contracts based on a mastercopy bytecode
 
 For convenience, the Manager will also fund the created contract with the amount of each contract's managed tokens.
 
+## Operations
+
+### Deploy
+
+**1) Check configuration**
+
+Ensure the .env file contains the MNEMONIC you are going to use for the deployment. Please refer to the `.env.sample` file for reference.
+
+**2) Create the deployment file**
+
+The file must be have CSV format in placed in the `/ops` folder with the following header:
+```
+beneficiary,managedAmount,startTime,endTime,periods,revocable,releaseStartTime,vestingCliffTime
+... line 1
+... line 2
+... N
+```
+
+You can define one line per contract. Keep the header in the file.
+
+In addition to that, create an empty file in the `/ops` folder to store the results of the deployed contracts.
+
+**2) Deposit funds in the Manager**
+
+You need to deposit enough funds in the Manager to be able to use for the deployments. When you run the `create-token-locks` command it will always check that the Manager has enough tokens to cover for the sum of vesting amount.
+
+```
+npx hardhat manager-deposit --amount <amount> --network <network>
+```
+
+- **amount** is a string and it can have 18 decimals. For example 1000.12
+
+- **network** depends on the `hardhat.config` but most of the times will be rinkeby or mainnet.
+
+**3) Deploy the contracts**
+
+```
+npx hardhat create-token-locks --deploy-file <file-name> --result-file <file-name-results> --owner-address <owner-address> --network <network>
+```
+
+- **file-name** file name under `/ops` that contains the contracts to deploy.
+
+- **file-name-results** file with the results of deployments.
+
+- **owner-address** address to use as owner of the vesting contracts. The owner can revoke the contract if revocable.
+
+- **network** depends on the hardhat.config but most of the times will be rinkeby or mainnet .
+
 ## Copyright
 
 Copyright &copy; 2020 The Graph Foundation
