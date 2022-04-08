@@ -577,11 +577,12 @@ task('manager-balance', 'Get current manager balance').setAction(async (taskArgs
   logger.log(await prettyEnv(hre))
 
   const tokenAddress = await manager.token()
+  const managerOwnerAddress = await manager.owner()
 
   logger.info('Using:')
   logger.log(`> GraphToken: ${tokenAddress}`)
   logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
-  logger.log(`> GraphTokenLockManager: ${manager.address}`)
+  logger.log(`> GraphTokenLockManager: ${manager.address} owner: ${managerOwnerAddress}`)
 
   const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
   const balance = await grt.balanceOf(manager.address)
