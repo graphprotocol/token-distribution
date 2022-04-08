@@ -28,6 +28,8 @@ interface DeployedTokenLockWallet {
   manager: string
   tokensReleased: string
   tokensWithdrawn: string
+  tokensRevoked: string
+  blockNumberCreated: string
 }
 
 interface ContractTokenData {
@@ -73,6 +75,8 @@ const vestingListExchanges: DeployedTokenLockWallet[] = [
     manager: '0x0000000000000000000000000000000000000000',
     tokensReleased: '0',
     tokensWithdrawn: '0',
+    tokensRevoked: '0',
+    blockNumberCreated: '0',
   },
   {
     beneficiary: '0x0000000000000000000000000000000000000000',
@@ -89,6 +93,8 @@ const vestingListExchanges: DeployedTokenLockWallet[] = [
     manager: '0x0000000000000000000000000000000000000000',
     tokensReleased: '0',
     tokensWithdrawn: '0',
+    tokensRevoked: '0',
+    blockNumberCreated: '0',
   },
   {
     beneficiary: '0x0000000000000000000000000000000000000000',
@@ -105,6 +111,8 @@ const vestingListExchanges: DeployedTokenLockWallet[] = [
     manager: '0x0000000000000000000000000000000000000000',
     tokensReleased: '0',
     tokensWithdrawn: '0',
+    tokensRevoked: '0',
+    blockNumberCreated: '0',
   },
   {
     beneficiary: '0x0000000000000000000000000000000000000000',
@@ -121,6 +129,8 @@ const vestingListExchanges: DeployedTokenLockWallet[] = [
     manager: '0x0000000000000000000000000000000000000000',
     tokensReleased: '0',
     tokensWithdrawn: '0',
+    tokensRevoked: '0',
+    blockNumberCreated: '0',
   },
   {
     beneficiary: '0x0000000000000000000000000000000000000000',
@@ -137,6 +147,8 @@ const vestingListExchanges: DeployedTokenLockWallet[] = [
     manager: '0x0000000000000000000000000000000000000000',
     tokensReleased: '0',
     tokensWithdrawn: '0',
+    tokensRevoked: '0',
+    blockNumberCreated: '0',
   },
 ]
 
@@ -175,6 +187,8 @@ async function getWallets(skip = 0): Promise<DeployedTokenLockWallet> {
       manager
       tokensReleased
       tokensWithdrawn
+      tokensRevoked
+      blockNumberCreated
     }
   }
 `
@@ -313,6 +327,8 @@ task('contracts:list', 'List all token lock contracts').setAction(async () => {
     'tokensReleased',
     'tokensWithdrawn',
     'tokensAvailable',
+    'tokensRevoked',
+    'blockNumberCreated',
   ].join(',')
   console.log(headers)
 
@@ -333,6 +349,8 @@ task('contracts:list', 'List all token lock contracts').setAction(async () => {
       toInt(wallet.tokensReleased),
       toInt(wallet.tokensWithdrawn),
       formatRoundGRT(getAvailableAmount(wallet)),
+      toInt(wallet.tokensRevoked),
+      wallet.blockNumberCreated,
     ].join(',')
     console.log(csv)
   }
