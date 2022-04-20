@@ -1,4 +1,3 @@
-import chalk from 'chalk'
 import axios from 'axios'
 import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
@@ -413,7 +412,7 @@ task('contracts:summary', 'Show summary of balances').setAction(async (_, hre: H
   const totalLockedExchanges = managedAmountExchanges.sub(availableAmountExchanges)
   const totalLocked = totalLockedAll.add(totalLockedEAN).add(totalLockedGRT).add(totalLockedExchanges)
 
-  console.log(chalk.whiteBright('General Summary'))
+  console.log('General Summary')
   console.log('---------------')
   console.log('= Total Supply:\t', formatRoundGRT(totalSupply))
   console.log('- Total Locked:\t', formatRoundGRT(totalLocked))
@@ -426,7 +425,7 @@ task('contracts:summary', 'Show summary of balances').setAction(async (_, hre: H
   summary.show()
 
   // Summary of revocable contracts
-  console.log(chalk.whiteBright('\nRevocable Summary'))
+  console.log('\nRevocable Summary')
   console.log('-----------------')
   revocableSummary.show(false)
 })
