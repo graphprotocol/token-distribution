@@ -4,6 +4,7 @@ import '@nomiclabs/hardhat-ethers'
 import { BigNumber, Contract, utils } from 'ethers'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import CoinGecko from 'coingecko-api'
+import { Block } from '@ethersproject/abstract-provider'
 
 const TOKEN_DIST_SUBGRAPH = 'https://api.thegraph.com/subgraphs/name/graphprotocol/token-distribution'
 const NETWORK_SUBGRAPH = 'https://api.thegraph.com/subgraphs/name/graphprotocol/graph-network-mainnet'
@@ -153,9 +154,12 @@ const vestingListExchanges: DeployedTokenLockWallet[] = [
 
 // Network
 
-async function getNetworkData(): Promise<GraphNetwork> {
+async function getNetworkData(blockNumber: number): Promise<GraphNetwork> {
   const query = `{
-    graphNetwork(id: 1) {
+    graphNetwork(
+      id: 1,
+      block: { number: ${blockNumber} },
+    ) {
       id
       totalSupply
     }
@@ -165,9 +169,10 @@ async function getNetworkData(): Promise<GraphNetwork> {
   return res.data.data.graphNetwork
 }
 
-async function getWallets(skip = 0): Promise<DeployedTokenLockWallet> {
+async function getWallets(skip = 0, blockNumber: number): Promise<DeployedTokenLockWallet> {
   const query = `{
     tokenLockWallets (
+        block: { number: ${blockNumber} },
         first: 1000, 
         skip: ${skip},
         orderBy: "id"
@@ -195,11 +200,11 @@ async function getWallets(skip = 0): Promise<DeployedTokenLockWallet> {
   return res.data.data.tokenLockWallets
 }
 
-async function getAllItems(fetcher): Promise<any[]> {
+async function getAllItems(fetcher, blockNumber: number): Promise<any[]> {
   let skip = 0
   let allItems = []
   while (true) {
-    const items = await fetcher(skip)
+    const items = await fetcher(skip, blockNumber)
     allItems = [...allItems, ...items]
     if (items.length < 1000) {
       break
@@ -211,8 +216,8 @@ async function getAllItems(fetcher): Promise<any[]> {
 
 // Calculations
 
-function getAvailableAmount(wallet: DeployedTokenLockWallet): BigNumber {
-  const current = Math.round(+new Date() / 1000)
+function getAvailableAmount(wallet: DeployedTokenLockWallet, blockTimestamp: number): BigNumber {
+  const current = blockTimestamp
   const startTime = parseInt(wallet.startTime)
   const endTime = parseInt(wallet.endTime)
   const managedAmount = toBN(wallet.managedAmount)
@@ -243,8 +248,9 @@ class TokenSummary {
   totalCount: number
   contractsReleased: ContractTokenData[]
   contractsInProtocol: ContractTokenData[]
+  block: Block
 
-  constructor() {
+  constructor(block: Block) {
     this.totalManaged = BigNumber.from(0)
     this.totalReleased = BigNumber.from(0)
     this.totalAvailable = BigNumber.from(0)
@@ -252,10 +258,11 @@ class TokenSummary {
     this.totalCount = 0
     this.contractsReleased = []
     this.contractsInProtocol = []
+    this.block = block
   }
 
   public async addWallet(wallet: DeployedTokenLockWallet, contract?: Contract) {
-    const availableAmount = getAvailableAmount(wallet)
+    const availableAmount = getAvailableAmount(wallet, this.block.timestamp)
     const tokensReleased = toBN(wallet.tokensReleased)
 
     this.totalManaged = this.totalManaged.add(toBN(wallet.managedAmount))
@@ -268,7 +275,7 @@ class TokenSummary {
     }
 
     if (contract) {
-      const [usedAmount] = await Promise.all([contract.usedAmount()])
+      const [usedAmount] = await Promise.all([contract.usedAmount({ blockTag: this.block.number })])
       if (usedAmount.gt(0)) {
         this.totalUsed = this.totalUsed.add(usedAmount)
         this.contractsInProtocol.push({ address: contract.address, tokenAmount: usedAmount })
@@ -307,128 +314,138 @@ class TokenSummary {
 
 // -- Tasks --
 
-task('contracts:list', 'List all token lock contracts').setAction(async () => {
-  const allWallets = (await getAllItems(getWallets)) as DeployedTokenLockWallet[]
+task('contracts:list', 'List all token lock contracts')
+  .addOptionalParam('blocknumber', 'Block number to list contracts on')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
+    const block = await hre.ethers.provider.getBlock(blockNumber)
+    console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
+    const allWallets = (await getAllItems(getWallets, block.number)) as DeployedTokenLockWallet[]
 
-  const headers = [
-    'beneficiary',
-    'managedAmount',
-    'startTime',
-    'endTime',
-    'periods',
-    'revocable',
-    'releaseStartTime',
-    'vestingCliffTime',
-    'contractAddress',
-    'initHash',
-    'txHash',
-    'manager',
-    'tokensReleased',
-    'tokensWithdrawn',
-    'tokensAvailable',
-    'tokensRevoked',
-    'blockNumberCreated',
-  ].join(',')
-  console.log(headers)
-
-  for (const wallet of allWallets) {
-    const csv = [
-      wallet.beneficiary,
-      toInt(wallet.managedAmount),
-      wallet.startTime,
-      wallet.endTime,
-      wallet.periods,
-      wallet.revocable,
-      wallet.releaseStartTime,
-      wallet.vestingCliffTime,
-      wallet.id,
-      wallet.initHash,
-      wallet.txHash,
-      wallet.manager,
-      toInt(wallet.tokensReleased),
-      toInt(wallet.tokensWithdrawn),
-      formatRoundGRT(getAvailableAmount(wallet)),
-      toInt(wallet.tokensRevoked),
-      wallet.blockNumberCreated,
+    const headers = [
+      'beneficiary',
+      'managedAmount',
+      'startTime',
+      'endTime',
+      'periods',
+      'revocable',
+      'releaseStartTime',
+      'vestingCliffTime',
+      'contractAddress',
+      'initHash',
+      'txHash',
+      'manager',
+      'tokensReleased',
+      'tokensWithdrawn',
+      'tokensAvailable',
+      'tokensRevoked',
+      'blockNumberCreated',
     ].join(',')
-    console.log(csv)
-  }
-})
+    console.log(headers)
 
-task('contracts:summary', 'Show summary of balances').setAction(async (_, hre: HardhatRuntimeEnvironment) => {
-  // Fetch contracts
-  const allWallets = (await getAllItems(getWallets)) as DeployedTokenLockWallet[]
-  const revocableWallets = allWallets.filter((wallet) => wallet.revocable === 'Enabled')
+    for (const wallet of allWallets) {
+      const csv = [
+        wallet.beneficiary,
+        toInt(wallet.managedAmount),
+        wallet.startTime,
+        wallet.endTime,
+        wallet.periods,
+        wallet.revocable,
+        wallet.releaseStartTime,
+        wallet.vestingCliffTime,
+        wallet.id,
+        wallet.initHash,
+        wallet.txHash,
+        wallet.manager,
+        toInt(wallet.tokensReleased),
+        toInt(wallet.tokensWithdrawn),
+        formatRoundGRT(getAvailableAmount(wallet, block.timestamp)),
+        toInt(wallet.tokensRevoked),
+        wallet.blockNumberCreated,
+      ].join(',')
+      console.log(csv)
+    }
+  })
 
-  // Calculate summaries (for all vestings)
-  const summary: TokenSummary = new TokenSummary()
-  for (const wallet of allWallets) {
-    await summary.addWallet(wallet)
-  }
+task('contracts:summary', 'Show summary of balances')
+  .addOptionalParam('blocknumber', 'Block number to calculate balances on')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    // Fetch contracts
+    const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
+    const block = await hre.ethers.provider.getBlock(blockNumber)
+    console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
+    const allWallets = (await getAllItems(getWallets, block.number)) as DeployedTokenLockWallet[]
+    const revocableWallets = allWallets.filter((wallet) => wallet.revocable === 'Enabled')
 
-  // Calculate summaries (for revocable vestings)
-  const revocableSummary: TokenSummary = new TokenSummary()
-  await Promise.all(
-    revocableWallets.map(async (wallet) => {
-      const contract = await hre.ethers.getContractAt('GraphTokenLockWallet', wallet.id)
-      await revocableSummary.addWallet(wallet, contract)
-    }),
-  )
+    // Calculate summaries (for all vestings)
+    const summary: TokenSummary = new TokenSummary(block)
+    for (const wallet of allWallets) {
+      await summary.addWallet(wallet)
+    }
 
-  // Network data
-  const graphNetwork = await getNetworkData()
+    // Calculate summaries (for revocable vestings)
+    const revocableSummary: TokenSummary = new TokenSummary(block)
+    await Promise.all(
+      revocableWallets.map(async (wallet) => {
+        const contract = await hre.ethers.getContractAt('GraphTokenLockWallet', wallet.id)
+        await revocableSummary.addWallet(wallet, contract)
+      }),
+    )
 
-  // Foundation and Edge & Node contracts
-  const vestingEAN = await hre.ethers.getContractAt(
-    'GraphTokenLockSimple',
-    '0x5785176048BEB00DcB6eC84A604d76E30E0666db',
-  )
-  const vestingGRT = await hre.ethers.getContractAt(
-    'GraphTokenLockSimple',
-    '0x32Ec7A59549b9F114c9D7d8b21891d91Ae7F2ca1',
-  )
-  const [managedAmountEAN, managedAmountGRT, availableAmountEAN, availableAmountGRT] = await Promise.all([
-    await vestingEAN.managedAmount(),
-    await vestingGRT.managedAmount(),
-    await vestingEAN.availableAmount(),
-    await vestingGRT.availableAmount(),
-  ])
+    // Network data
+    const graphNetwork = await getNetworkData(block.number)
 
-  // Exchange locked
-  let managedAmountExchanges = vestingListExchanges
-    .map((vesting) => toBN(vesting.managedAmount))
-    .reduce((a, b) => a.add(b), toBN('0'))
-  let availableAmountExchanges = vestingListExchanges
-    .map((vesting) => getAvailableAmount(vesting))
-    .reduce((a, b) => a.add(b), toBN('0'))
-  managedAmountExchanges = managedAmountExchanges.add(toWei('283333334'))
-  availableAmountExchanges = availableAmountExchanges.add(toWei('150000000'))
+    // Foundation and Edge & Node contracts
+    const vestingEAN = await hre.ethers.getContractAt(
+      'GraphTokenLockSimple',
+      '0x5785176048BEB00DcB6eC84A604d76E30E0666db',
+    )
+    const vestingGRT = await hre.ethers.getContractAt(
+      'GraphTokenLockSimple',
+      '0x32Ec7A59549b9F114c9D7d8b21891d91Ae7F2ca1',
+    )
+    const [managedAmountEAN, managedAmountGRT, availableAmountEAN, availableAmountGRT] = await Promise.all([
+      await vestingEAN.managedAmount({ blockTag: block.number }),
+      await vestingGRT.managedAmount({ blockTag: block.number }),
+      await vestingEAN.availableAmount({ blockTag: block.number }),
+      await vestingGRT.availableAmount({ blockTag: block.number }),
+    ])
 
-  // General summary
-  const totalSupply = toBN(graphNetwork.totalSupply)
-  const totalLockedAll = summary.totalManaged.sub(summary.totalAvailable)
-  const totalLockedEAN = managedAmountEAN.sub(availableAmountEAN)
-  const totalLockedGRT = managedAmountGRT.sub(availableAmountGRT)
-  const totalLockedExchanges = managedAmountExchanges.sub(availableAmountExchanges)
-  const totalLocked = totalLockedAll.add(totalLockedEAN).add(totalLockedGRT).add(totalLockedExchanges)
+    // Exchange locked
+    let managedAmountExchanges = vestingListExchanges
+      .map((vesting) => toBN(vesting.managedAmount))
+      .reduce((a, b) => a.add(b), toBN('0'))
+    let availableAmountExchanges = vestingListExchanges
+      .map((vesting) => getAvailableAmount(vesting, block.timestamp))
+      .reduce((a, b) => a.add(b), toBN('0'))
+    managedAmountExchanges = managedAmountExchanges.add(toWei('283333334'))
+    availableAmountExchanges = availableAmountExchanges.add(toWei('150000000'))
 
-  console.log('General Summary')
-  console.log('---------------')
-  console.log('= Total Supply:\t', formatRoundGRT(totalSupply))
-  console.log('- Total Locked:\t', formatRoundGRT(totalLocked))
-  console.log('-- General:\t', formatRoundGRT(totalLockedAll))
-  console.log('-- Edge & Node:\t', formatRoundGRT(totalLockedEAN), '/', formatRoundGRT(managedAmountEAN))
-  console.log('-- Foundation:\t', formatRoundGRT(totalLockedGRT), '/', formatRoundGRT(managedAmountGRT))
-  console.log('-- Exchanges:\t', formatRoundGRT(totalLockedExchanges))
-  console.log('- Total Free:\t', formatRoundGRT(totalSupply.sub(totalLocked)))
-  console.log('')
-  summary.show()
+    // General summary
+    const totalSupply = toBN(graphNetwork.totalSupply)
+    const totalLockedAll = summary.totalManaged.sub(summary.totalAvailable)
+    const totalLockedEAN = managedAmountEAN.sub(availableAmountEAN)
+    const totalLockedGRT = managedAmountGRT.sub(availableAmountGRT)
+    const totalLockedExchanges = managedAmountExchanges.sub(availableAmountExchanges)
+    const totalLocked = totalLockedAll.add(totalLockedEAN).add(totalLockedGRT).add(totalLockedExchanges)
 
-  // Summary of revocable contracts
-  console.log('\nRevocable Summary')
-  console.log('-----------------')
-  revocableSummary.show(false)
-})
+    console.log('General Summary')
+    console.log('---------------')
+    console.log('= Total Supply:\t', formatRoundGRT(totalSupply))
+    console.log('- Total Locked:\t', formatRoundGRT(totalLocked))
+    console.log('-- General:\t', formatRoundGRT(totalLockedAll), '/', formatRoundGRT(summary.totalManaged))
+    console.log('-- Edge & Node:\t', formatRoundGRT(totalLockedEAN), '/', formatRoundGRT(managedAmountEAN))
+    console.log('-- Foundation:\t', formatRoundGRT(totalLockedGRT), '/', formatRoundGRT(managedAmountGRT))
+    console.log('-- Exchanges:\t', formatRoundGRT(totalLockedExchanges), '/', formatRoundGRT(managedAmountExchanges))
+    console.log('- Total Free:\t', formatRoundGRT(totalSupply.sub(totalLocked)))
+    console.log('')
+    summary.show()
+
+    // Summary of revocable contracts
+    console.log('\nRevocable Summary')
+    console.log('-----------------')
+    revocableSummary.show(false)
+  })
 
 task('contracts:show', 'Show info about an specific contract')
   .addPositionalParam('address', 'Contract address to show')
