@@ -1,3 +1,4 @@
+import PQueue from 'p-queue'
 import axios from 'axios'
 import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
@@ -384,13 +385,15 @@ task('contracts:summary', 'Show summary of balances')
     }
 
     // Calculate summaries (for revocable vestings)
+    const queue = new PQueue({ concurrency: 10 })
     const revocableSummary: TokenSummary = new TokenSummary(block)
-    await Promise.all(
-      revocableWallets.map(async (wallet) => {
+    revocableWallets.map(async (wallet) => {
+      queue.add(async () => {
         const contract = await hre.ethers.getContractAt('GraphTokenLockWallet', wallet.id)
         await revocableSummary.addWallet(wallet, contract)
-      }),
-    )
+      })
+    })
+    await queue.onIdle()
 
     // Network data
     const graphNetwork = await getNetworkData(block.number)
