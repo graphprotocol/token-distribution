@@ -36,6 +36,7 @@
   "license": "MIT",
   "devDependencies": {
     "@ethersproject/experimental": "^5.0.7",
+    "@graphprotocol/client-cli": "^2.0.2",
     "@graphprotocol/contracts": "^1.1.0",
     "@nomiclabs/hardhat-ethers": "^2.0.0",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
@@ -62,6 +63,7 @@
     "eslint-plugin-standard": "5.0.0",
     "ethereum-waffle": "^3.1.1",
     "ethers": "^5.0.18",
+    "graphql": "^16.5.0",
     "hardhat": "^2.6.1",
     "hardhat-abi-exporter": "^2.0.1",
     "hardhat-contract-sizer": "^2.0.1",

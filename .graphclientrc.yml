@@ -1,0 +1,16 @@
+sources:
+ 
+  - name: graph-network
+    handler:
+      graphql:
+        endpoint: https://api.thegraph.com/subgraphs/name/graphprotocol/graph-network-mainnet
+ 
+ # Eventually we'll get rate limited by the hosted service
+  - name: token-distribution
+    handler:
+      graphql:
+        endpoint: https://api.thegraph.com/subgraphs/name/graphprotocol/token-distribution
+          
+documents:
+  - ops/queries/network.graphql
+  - ops/queries/tokenLockWallets.graphql
