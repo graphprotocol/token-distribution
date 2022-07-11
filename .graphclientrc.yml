@@ -5,11 +5,13 @@ sources:
       graphql:
         endpoint: https://api.thegraph.com/subgraphs/name/graphprotocol/graph-network-mainnet
  
- # Eventually we'll get rate limited by the hosted service
   - name: token-distribution
     handler:
       graphql:
         endpoint: https://api.thegraph.com/subgraphs/name/graphprotocol/token-distribution
+    transforms:
+      - autoPagination:
+          validateSchema: true
           
 documents:
   - ops/queries/network.graphql

@@ -1,8 +1,7 @@
-query TokenLockWallets($blockNumber: Int, $skip: Int) {
+query TokenLockWallets($blockNumber: Int, $first: Int) {
   tokenLockWallets (
       block: { number: $blockNumber },
-      first: 1000, 
-      skip: $skip,
+      first: $first,
       orderBy: id
   ) {
     id
