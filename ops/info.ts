@@ -163,23 +163,12 @@ async function getNetworkData(blockNumber: number): Promise<GraphNetwork> {
   return result.data.graphNetwork
 }
 
-async function getWallets(skip = 0, blockNumber: number): Promise<TokenLockWallet[]> {
-  const result: ExecutionResult<TokenLockWalletsQuery> = await execute(TokenLockWalletsDocument, { blockNumber, skip })
+async function getWallets(blockNumber: number): Promise<TokenLockWallet[]> {
+  const result: ExecutionResult<TokenLockWalletsQuery> = await execute(TokenLockWalletsDocument, {
+    blockNumber,
+    first: 10_000, // Update if we go over 10k tokenLockWallets
+  })
   return result.data ? result.data.tokenLockWallets : []
-}
-
-async function getAllItems(fetcher, blockNumber: number): Promise<any[]> {
-  let skip = 0
-  let allItems = []
-  while (true) {
-    const items = await fetcher(skip, blockNumber)
-    allItems = [...allItems, ...items]
-    if (items.length < 1000) {
-      break
-    }
-    skip += 1000
-  }
-  return allItems
 }
 
 // Calculations
@@ -288,7 +277,7 @@ task('contracts:list', 'List all token lock contracts')
     const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
     const block = await hre.ethers.provider.getBlock(blockNumber)
     console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
-    const allWallets = (await getAllItems(getWallets, block.number)) as TokenLockWallet[]
+    const allWallets = await getWallets(block.number)
 
     const headers = [
       'beneficiary',
@@ -342,7 +331,7 @@ task('contracts:summary', 'Show summary of balances')
     const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
     const block = await hre.ethers.provider.getBlock(blockNumber)
     console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
-    const allWallets = (await getAllItems(getWallets, block.number)) as TokenLockWallet[]
+    const allWallets = await getWallets(block.number)
     const revocableWallets = allWallets.filter((wallet) => wallet.revocable === 'Enabled')
 
     // Calculate summaries (for all vestings)
