@@ -2,4 +2,5 @@
 
 set -eo pipefail
 
+yarn graphclient build
 yarn run compile
