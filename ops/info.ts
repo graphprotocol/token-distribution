@@ -1,46 +1,49 @@
 import PQueue from 'p-queue'
-import axios from 'axios'
 import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
 import { BigNumber, Contract, utils } from 'ethers'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import CoinGecko from 'coingecko-api'
 import { Block } from '@ethersproject/abstract-provider'
-
-const TOKEN_DIST_SUBGRAPH = 'https://api.thegraph.com/subgraphs/name/graphprotocol/token-distribution'
-const NETWORK_SUBGRAPH = 'https://api.thegraph.com/subgraphs/name/graphprotocol/graph-network-mainnet'
+import * as GraphClient from '../.graphclient'
+import {
+  execute,
+  GraphNetworkDocument,
+  GraphNetworkQuery,
+  TokenLockWalletsDocument,
+  TokenLockWalletsQuery,
+} from '../.graphclient'
+import { ExecutionResult } from 'graphql'
 
 const CoinGeckoClient = new CoinGecko()
 
 // Types
-
-interface DeployedTokenLockWallet {
-  beneficiary: string
-  managedAmount: string
-  periods: number
-  startTime: string
-  endTime: string
-  revocable: string
-  releaseStartTime: string
-  vestingCliffTime: string
-  id: string
-  initHash: string
-  txHash: string
-  manager: string
-  tokensReleased: string
-  tokensWithdrawn: string
-  tokensRevoked: string
-  blockNumberCreated: string
-}
 
 interface ContractTokenData {
   address: string
   tokenAmount: BigNumber
 }
 
-interface GraphNetwork {
-  totalSupply: string
-}
+type TokenLockWallet = Pick<
+  GraphClient.TokenLockWallet,
+  | 'id'
+  | 'beneficiary'
+  | 'managedAmount'
+  | 'periods'
+  | 'startTime'
+  | 'endTime'
+  | 'revocable'
+  | 'releaseStartTime'
+  | 'vestingCliffTime'
+  | 'initHash'
+  | 'txHash'
+  | 'manager'
+  | 'tokensReleased'
+  | 'tokensWithdrawn'
+  | 'tokensRevoked'
+  | 'blockNumberCreated'
+>
+type GraphNetwork = Pick<GraphClient.GraphNetwork, 'id' | 'totalSupply'>
 
 // Helpers
 
@@ -60,7 +63,7 @@ const now = () => +new Date() / 1000
 
 // Fixed data
 
-const vestingListExchanges: DeployedTokenLockWallet[] = [
+const vestingListExchanges: TokenLockWallet[] = [
   {
     beneficiary: '0x0000000000000000000000000000000000000000',
     managedAmount: toWei('50000000'),
@@ -156,49 +159,13 @@ const vestingListExchanges: DeployedTokenLockWallet[] = [
 // Network
 
 async function getNetworkData(blockNumber: number): Promise<GraphNetwork> {
-  const query = `{
-    graphNetwork(
-      id: 1,
-      block: { number: ${blockNumber} },
-    ) {
-      id
-      totalSupply
-    }
-  }
-  `
-  const res = await axios.post(NETWORK_SUBGRAPH, { query })
-  return res.data.data.graphNetwork
+  const result: ExecutionResult<GraphNetworkQuery> = await execute(GraphNetworkDocument, { blockNumber })
+  return result.data.graphNetwork
 }
 
-async function getWallets(skip = 0, blockNumber: number): Promise<DeployedTokenLockWallet> {
-  const query = `{
-    tokenLockWallets (
-        block: { number: ${blockNumber} },
-        first: 1000, 
-        skip: ${skip},
-        orderBy: "id"
-    ) {
-      id
-      beneficiary
-      managedAmount
-      periods
-      startTime
-      endTime
-      revocable
-      releaseStartTime
-      vestingCliffTime
-      initHash
-      txHash
-      manager
-      tokensReleased
-      tokensWithdrawn
-      tokensRevoked
-      blockNumberCreated
-    }
-  }
-`
-  const res = await axios.post(TOKEN_DIST_SUBGRAPH, { query })
-  return res.data.data.tokenLockWallets
+async function getWallets(skip = 0, blockNumber: number): Promise<TokenLockWallet[]> {
+  const result: ExecutionResult<TokenLockWalletsQuery> = await execute(TokenLockWalletsDocument, { blockNumber, skip })
+  return result.data ? result.data.tokenLockWallets : []
 }
 
 async function getAllItems(fetcher, blockNumber: number): Promise<any[]> {
@@ -217,7 +184,7 @@ async function getAllItems(fetcher, blockNumber: number): Promise<any[]> {
 
 // Calculations
 
-function getAvailableAmount(wallet: DeployedTokenLockWallet, blockTimestamp: number): BigNumber {
+function getAvailableAmount(wallet: TokenLockWallet, blockTimestamp: number): BigNumber {
   const current = blockTimestamp
   const startTime = parseInt(wallet.startTime)
   const endTime = parseInt(wallet.endTime)
@@ -262,7 +229,7 @@ class TokenSummary {
     this.block = block
   }
 
-  public async addWallet(wallet: DeployedTokenLockWallet, contract?: Contract) {
+  public async addWallet(wallet: TokenLockWallet, contract?: Contract) {
     const availableAmount = getAvailableAmount(wallet, this.block.timestamp)
     const tokensReleased = toBN(wallet.tokensReleased)
 
@@ -321,7 +288,7 @@ task('contracts:list', 'List all token lock contracts')
     const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
     const block = await hre.ethers.provider.getBlock(blockNumber)
     console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
-    const allWallets = (await getAllItems(getWallets, block.number)) as DeployedTokenLockWallet[]
+    const allWallets = (await getAllItems(getWallets, block.number)) as TokenLockWallet[]
 
     const headers = [
       'beneficiary',
@@ -375,7 +342,7 @@ task('contracts:summary', 'Show summary of balances')
     const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
     const block = await hre.ethers.provider.getBlock(blockNumber)
     console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
-    const allWallets = (await getAllItems(getWallets, block.number)) as DeployedTokenLockWallet[]
+    const allWallets = (await getAllItems(getWallets, block.number)) as TokenLockWallet[]
     const revocableWallets = allWallets.filter((wallet) => wallet.revocable === 'Enabled')
 
     // Calculate summaries (for all vestings)

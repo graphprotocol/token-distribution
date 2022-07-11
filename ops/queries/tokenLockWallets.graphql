@@ -1,0 +1,25 @@
+query TokenLockWallets($blockNumber: Int, $skip: Int) {
+  tokenLockWallets (
+      block: { number: $blockNumber },
+      first: 1000, 
+      skip: $skip,
+      orderBy: id
+  ) {
+    id
+    beneficiary
+    managedAmount
+    periods
+    startTime
+    endTime
+    revocable
+    releaseStartTime
+    vestingCliffTime
+    initHash
+    txHash
+    manager
+    tokensReleased
+    tokensWithdrawn
+    tokensRevoked
+    blockNumberCreated
+  }
+}
