@@ -25,7 +25,8 @@
     "flatten": "scripts/flatten",
     "typechain": "hardhat typechain",
     "verify": "hardhat verify",
-    "size": "hardhat size-contracts"
+    "size": "hardhat size-contracts",
+    "postinstall": "yarn graphclient build"
   },
   "files": [
     "dist/**/*",
