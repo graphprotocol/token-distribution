@@ -1,9 +1,5 @@
 query TokenLockWallets($blockNumber: Int, $first: Int) {
-  tokenLockWallets (
-      block: { number: $blockNumber },
-      first: $first,
-      orderBy: id
-  ) {
+  tokenLockWallets(block: { number: $blockNumber }, first: $first, orderBy: id) {
     id
     beneficiary
     managedAmount

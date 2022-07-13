@@ -12,7 +12,8 @@ sources:
     transforms:
       - autoPagination:
           validateSchema: true
-          
+
 documents:
   - ops/queries/network.graphql
   - ops/queries/tokenLockWallets.graphql
+  - ops/queries/curators.graphql

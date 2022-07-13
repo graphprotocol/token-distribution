@@ -12,6 +12,8 @@ import {
   GraphNetworkQuery,
   TokenLockWalletsDocument,
   TokenLockWalletsQuery,
+  CuratorWalletsDocument,
+  CuratorWalletsQuery,
 } from '../.graphclient'
 import { ExecutionResult } from 'graphql'
 
@@ -44,7 +46,6 @@ type TokenLockWallet = Pick<
   | 'blockNumberCreated'
 >
 type GraphNetwork = Pick<GraphClient.GraphNetwork, 'id' | 'totalSupply'>
-
 // Helpers
 
 const toInt = (s) => parseInt(s) / 1e18
@@ -166,7 +167,15 @@ async function getNetworkData(blockNumber: number): Promise<GraphNetwork> {
 async function getWallets(blockNumber: number): Promise<TokenLockWallet[]> {
   const result: ExecutionResult<TokenLockWalletsQuery> = await execute(TokenLockWalletsDocument, {
     blockNumber,
-    first: 10_000, // Update if we go over 10k tokenLockWallets
+    first: 3_000,
+  })
+  return result.data ? result.data.tokenLockWallets : []
+}
+
+async function getCuratorWallets(blockNumber: number): Promise<TokenLockWallet[]> {
+  const result: ExecutionResult<CuratorWalletsQuery> = await execute(CuratorWalletsDocument, {
+    blockNumber,
+    first: 3_000,
   })
   return result.data ? result.data.tokenLockWallets : []
 }
@@ -322,6 +331,22 @@ task('contracts:list', 'List all token lock contracts')
       ].join(',')
       console.log(csv)
     }
+  })
+
+task('contracts:curators', 'Show overview of curator vesting contracts')
+  .addOptionalParam('blocknumber', 'Block number to list contracts on')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
+    const block = await hre.ethers.provider.getBlock(blockNumber)
+    console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
+
+    const allWallets = await getCuratorWallets(block.number)
+    const managedAmount = allWallets.reduce((acc, wallet) => acc.add(toBN(wallet.managedAmount)), BigNumber.from(0))
+
+    console.log(`Found ${allWallets.length} curator wallets.`)
+    console.log(`Total managed amount: ${formatRoundGRT(managedAmount)}`)
+    console.log(`First curator contract deployed at block ${allWallets[0].blockNumberCreated}`)
+    console.log(`Last curator contract deployed at block ${allWallets[allWallets.length - 1].blockNumberCreated}`)
   })
 
 task('contracts:summary', 'Show summary of balances')
