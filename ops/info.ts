@@ -204,12 +204,31 @@ function getAvailableAmount(wallet: TokenLockWallet, blockTimestamp: number): Bi
   return amountPerPeriod.mul(passedPeriods)
 }
 
+// Returns the amount of tokens that are free to be withdrawn
+// Note that this is different than availableAmount() and releasableAmount()
+function getFreeAmount(wallet: TokenLockWallet, blockTimestamp: number): BigNumber {
+  const current = blockTimestamp
+  const releaseStartTime = parseInt(wallet.releaseStartTime)
+  const vestingCliffTime = parseInt(wallet.vestingCliffTime)
+
+  if (releaseStartTime > 0 && releaseStartTime > current) {
+    return toBN('0')
+  }
+
+  if (wallet.revocable === 'Enabled' && vestingCliffTime > 0 && vestingCliffTime > current) {
+    return toBN('0')
+  }
+
+  return getAvailableAmount(wallet, blockTimestamp)
+}
+
 // Summaries
 
 class TokenSummary {
   totalManaged: BigNumber
   totalReleased: BigNumber
   totalAvailable: BigNumber
+  totalFree: BigNumber
   totalUsed: BigNumber
   totalCount: number
   contractsReleased: ContractTokenData[]
@@ -220,6 +239,7 @@ class TokenSummary {
     this.totalManaged = BigNumber.from(0)
     this.totalReleased = BigNumber.from(0)
     this.totalAvailable = BigNumber.from(0)
+    this.totalFree = BigNumber.from(0)
     this.totalUsed = BigNumber.from(0)
     this.totalCount = 0
     this.contractsReleased = []
@@ -229,10 +249,12 @@ class TokenSummary {
 
   public async addWallet(wallet: TokenLockWallet, contract?: Contract) {
     const availableAmount = getAvailableAmount(wallet, this.block.timestamp)
+    const freeAmount = getFreeAmount(wallet, this.block.timestamp)
     const tokensReleased = toBN(wallet.tokensReleased)
 
     this.totalManaged = this.totalManaged.add(toBN(wallet.managedAmount))
     this.totalAvailable = this.totalAvailable.add(availableAmount)
+    this.totalFree = this.totalFree.add(freeAmount)
     this.totalReleased = this.totalReleased.add(tokensReleased)
     this.totalCount++
 
@@ -261,8 +283,9 @@ class TokenSummary {
       `- Available (${this.totalAvailable.mul(100).div(this.totalManaged)}%):`,
       formatRoundGRT(this.totalAvailable),
     )
+    console.log(`- Free (${this.totalFree.mul(100).div(this.totalManaged)}%):`, formatRoundGRT(this.totalFree))
     console.log(
-      `-- Released (${this.totalReleased.mul(100).div(this.totalAvailable)}%): ${formatRoundGRT(
+      `-- Released (${this.totalFree.gt(0) ? this.totalReleased.mul(100).div(this.totalFree) : 0}%): ${formatRoundGRT(
         this.totalReleased,
       )} [n:${this.contractsReleased.length}]`,
     )
@@ -388,6 +411,9 @@ task('contracts:summary', 'Show summary of balances')
       'GraphTokenLockSimple',
       '0x32Ec7A59549b9F114c9D7d8b21891d91Ae7F2ca1',
     )
+
+    // EAN and GRT vesting contracts have releaseStartTime = 0 and vestingCliffTime = 0
+    // so we can consider that availableAmount == freeAmount
     const [managedAmountEAN, managedAmountGRT, availableAmountEAN, availableAmountGRT] = await Promise.all([
       await vestingEAN.managedAmount({ blockTag: block.number }),
       await vestingGRT.managedAmount({ blockTag: block.number }),
@@ -399,18 +425,18 @@ task('contracts:summary', 'Show summary of balances')
     let managedAmountExchanges = vestingListExchanges
       .map((vesting) => toBN(vesting.managedAmount))
       .reduce((a, b) => a.add(b), toBN('0'))
-    let availableAmountExchanges = vestingListExchanges
-      .map((vesting) => getAvailableAmount(vesting, block.timestamp))
+    let freeAmountExchanges = vestingListExchanges
+      .map((vesting) => getFreeAmount(vesting, block.timestamp))
       .reduce((a, b) => a.add(b), toBN('0'))
     managedAmountExchanges = managedAmountExchanges.add(toWei('283333334'))
-    availableAmountExchanges = availableAmountExchanges.add(toWei('150000000'))
+    freeAmountExchanges = freeAmountExchanges.add(toWei('150000000'))
 
     // General summary
     const totalSupply = toBN(graphNetwork.totalSupply)
-    const totalLockedAll = summary.totalManaged.sub(summary.totalAvailable)
+    const totalLockedAll = summary.totalManaged.sub(summary.totalFree)
     const totalLockedEAN = managedAmountEAN.sub(availableAmountEAN)
     const totalLockedGRT = managedAmountGRT.sub(availableAmountGRT)
-    const totalLockedExchanges = managedAmountExchanges.sub(availableAmountExchanges)
+    const totalLockedExchanges = managedAmountExchanges.sub(freeAmountExchanges)
     const totalLocked = totalLockedAll.add(totalLockedEAN).add(totalLockedGRT).add(totalLockedExchanges)
 
     console.log('General Summary')
