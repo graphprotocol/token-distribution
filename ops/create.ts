@@ -66,7 +66,7 @@ const isValidAddressOrFail = (address: string) => {
 }
 
 const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
-  const data = fs.readFileSync(__dirname + filepath, 'utf8')
+  const data = fs.readFileSync(filepath, 'utf8')
   const entries = data.split('\n').map((e) => e.trim())
   entries.shift() // remove the title from the csv
   return entries
@@ -87,7 +87,7 @@ const loadDeployData = (filepath: string): TokenLockConfigEntry[] => {
 }
 
 const loadResultData = (filepath: string): TokenLockConfigEntry[] => {
-  const data = fs.readFileSync(__dirname + filepath, 'utf8')
+  const data = fs.readFileSync(filepath, 'utf8')
   const entries = data.split('\n').map((e) => e.trim())
   return entries
     .filter((entryData) => !!entryData)
@@ -288,25 +288,17 @@ task('create-token-locks', 'Create token lock contracts from file')
     logger.log(`> GraphTokenLockMasterCopy: ${await manager.masterCopy()}`)
     logger.log(`> GraphTokenLockManager: ${manager.address}`)
 
-    // Deployment can only happen through the Manager owner
-    const tokenLockManagerOwner = await manager.owner()
-    const { deployer } = await hre.getNamedAccounts()
-    if (tokenLockManagerOwner !== deployer) {
-      logger.error('Only the owner can deploy token locks')
-      process.exit(1)
-    }
-
     // Load config entries
     logger.log('')
     logger.info('Verifying deployment data...')
-    let entries = loadDeployData('/' + taskArgs.deployFile)
+    let entries = loadDeployData(taskArgs.deployFile)
     if (!checkAddresses(entries)) {
       process.exit(1)
     }
     logger.success(`Total of ${entries.length} entries. All good!`)
 
     // Load deployed entries
-    const deployedEntries = loadResultData('/' + taskArgs.resultFile)
+    const deployedEntries = loadResultData(taskArgs.resultFile)
 
     // Populate entries
     entries = await populateEntries(hre, entries, manager.address, tokenAddress, taskArgs.ownerAddress)
@@ -323,6 +315,14 @@ task('create-token-locks', 'Create token lock contracts from file')
     if (taskArgs.dryRun) {
       await getDeployContractAddresses(entries, manager)
       process.exit(0)
+    }
+
+    // Deployment can only happen through the Manager owner
+    const tokenLockManagerOwner = await manager.owner()
+    const { deployer } = await hre.getNamedAccounts()
+    if (tokenLockManagerOwner !== deployer) {
+      logger.error('Only the owner can deploy token locks')
+      process.exit(1)
     }
 
     // Check if Manager is funded
@@ -379,7 +379,7 @@ task('create-token-locks', 'Create token lock contracts from file')
 
           // Save result
           const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
-          saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+          saveDeployResult(taskArgs.resultFile, deployResult)
         } catch (err) {
           logger.error(err)
         }
@@ -410,7 +410,7 @@ task('create-token-locks-simple', 'Create token lock contracts from file')
     // Load config entries
     logger.log('')
     logger.info('Verifying deployment data...')
-    const entries = loadDeployData('/' + taskArgs.deployFile)
+    const entries = loadDeployData(taskArgs.deployFile)
     if (!checkAddresses(entries)) {
       process.exit(1)
     }
@@ -461,7 +461,7 @@ task('create-token-locks-simple', 'Create token lock contracts from file')
 
         // Save result
         const deployResult = { ...entry, txHash: tx.hash, salt: '', contractAddress: tokenLockSimple.address }
-        saveDeployResult('ops/' + taskArgs.resultFile, deployResult)
+        saveDeployResult(taskArgs.resultFile, deployResult)
       } catch (err) {
         logger.log(err)
       }
