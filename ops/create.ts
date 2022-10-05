@@ -1,5 +1,6 @@
 import PQueue from 'p-queue'
 import fs from 'fs'
+import path from 'path'
 import consola from 'consola'
 import inquirer from 'inquirer'
 import { utils, BigNumber, Event, ContractTransaction, ContractReceipt, Contract, ContractFactory } from 'ethers'
@@ -273,7 +274,11 @@ task('create-token-locks', 'Create token lock contracts from file')
   .addParam('deployFile', 'File from where to read the deploy config')
   .addParam('resultFile', 'File where to save results')
   .addParam('ownerAddress', 'Owner address of token lock contracts')
-  .addOptionalParam('dryRun', 'Get the deterministic contract addresses but do not deploy', false, boolean)
+  .addFlag('dryRun', 'Get the deterministic contract addresses but do not deploy')
+  .addFlag(
+    'txBuilder',
+    'Output transaction batch in JSON format, compatible with Gnosis Safe transaction builder. Does not deploy contracts',
+  )
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
     // Get contracts
     const manager = await getTokenLockManagerOrFail(hre)
@@ -313,31 +318,37 @@ task('create-token-locks', 'Create token lock contracts from file')
 
     // Dry running
     if (taskArgs.dryRun) {
+      logger.info('Running in dry run mode!')
       await getDeployContractAddresses(entries, manager)
       process.exit(0)
     }
 
-    // Deployment can only happen through the Manager owner
-    const tokenLockManagerOwner = await manager.owner()
-    const { deployer } = await hre.getNamedAccounts()
-    if (tokenLockManagerOwner !== deployer) {
-      logger.error('Only the owner can deploy token locks')
-      process.exit(1)
-    }
+    // If deploying contracts, check
+    // - deployer is the manager owner
+    // - deployer is well funded
+    if (!taskArgs.txBuilder) {
+      // Ensure deployer is the manager owner
+      const tokenLockManagerOwner = await manager.owner()
+      const { deployer } = await hre.getNamedAccounts()
+      if (tokenLockManagerOwner !== deployer) {
+        logger.error('Only the owner can deploy token locks')
+        process.exit(1)
+      }
 
-    // Check if Manager is funded
-    logger.log('')
-    logger.info('Verifying balances...')
-    const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
-    const totalAmount = getTotalAmount(entries)
-    const currentBalance = await grt.balanceOf(manager.address)
-    logger.log(`> Amount to distribute:  ${formatEther(totalAmount)} GRT`)
-    logger.log(`> Amount in the Manager: ${formatEther(currentBalance)} GRT`)
-    if (currentBalance.lt(totalAmount)) {
-      logger.error(`GraphTokenLockManager is underfunded. Deposit more funds into ${manager.address}`)
-      process.exit(1)
+      // Check if Manager is funded
+      logger.log('')
+      logger.info('Verifying balances...')
+      const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
+      const totalAmount = getTotalAmount(entries)
+      const currentBalance = await grt.balanceOf(manager.address)
+      logger.log(`> Amount to distribute:  ${formatEther(totalAmount)} GRT`)
+      logger.log(`> Amount in the Manager: ${formatEther(currentBalance)} GRT`)
+      if (currentBalance.lt(totalAmount)) {
+        logger.error(`GraphTokenLockManager is underfunded. Deposit more funds into ${manager.address}`)
+        process.exit(1)
+      }
+      logger.success('Manager has enough tokens to fund contracts')
     }
-    logger.success('Manager has enough tokens to fund contracts')
 
     // Summary
     if (!(await askConfirm())) {
@@ -345,47 +356,87 @@ task('create-token-locks', 'Create token lock contracts from file')
       process.exit(1)
     }
 
-    // Deploy contracts
-    const accounts = await hre.ethers.getSigners()
-    const nonceManager = new NonceManager(accounts[0]) // Use NonceManager to send concurrent txs
+    if (!taskArgs.txBuilder) {
+      // Deploy contracts
+      const accounts = await hre.ethers.getSigners()
+      const nonceManager = new NonceManager(accounts[0]) // Use NonceManager to send concurrent txs
 
-    const queue = new PQueue({ concurrency: 6 })
+      const queue = new PQueue({ concurrency: 6 })
 
-    for (const entry of entries) {
-      queue.add(async () => {
-        logger.log('')
-        logger.info(`Creating contract...`)
-        logger.log(prettyConfigEntry(entry))
+      for (const entry of entries) {
+        queue.add(async () => {
+          logger.log('')
+          logger.info(`Creating contract...`)
+          logger.log(prettyConfigEntry(entry))
 
-        try {
-          // Deploy
-          const tx = await manager
-            .connect(nonceManager)
-            .createTokenLockWallet(
-              entry.owner,
-              entry.beneficiary,
-              entry.managedAmount,
-              entry.startTime,
-              entry.endTime,
-              entry.periods,
-              entry.releaseStartTime,
-              entry.vestingCliffTime,
-              entry.revocable,
-            )
-          const receipt = await waitTransaction(tx)
-          const event: Event = receipt.events[0]
-          const contractAddress = event.args['proxy']
-          logger.success(`Deployed: ${contractAddress} (${entry.salt})`)
+          try {
+            // Deploy
+            const tx = await manager
+              .connect(nonceManager)
+              .createTokenLockWallet(
+                entry.owner,
+                entry.beneficiary,
+                entry.managedAmount,
+                entry.startTime,
+                entry.endTime,
+                entry.periods,
+                entry.releaseStartTime,
+                entry.vestingCliffTime,
+                entry.revocable,
+              )
+            const receipt = await waitTransaction(tx)
+            const event: Event = receipt.events[0]
+            const contractAddress = event.args['proxy']
+            logger.success(`Deployed: ${contractAddress} (${entry.salt})`)
 
-          // Save result
-          const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
-          saveDeployResult(taskArgs.resultFile, deployResult)
-        } catch (err) {
-          logger.error(err)
-        }
-      })
+            // Save result
+            const deployResult = { ...entry, salt: entry.salt, txHash: tx.hash, contractAddress }
+            saveDeployResult(taskArgs.resultFile, deployResult)
+          } catch (err) {
+            logger.error(err)
+          }
+        })
+      }
+      await queue.onIdle()
+    } else {
+      // Output tx builder json
+      logger.info(`Creating transaction builder JSON file...`)
+      const chainId = (await hre.ethers.provider.getNetwork()).chainId.toString()
+      const dateTime = new Date().getTime()
+
+      const templateFilename = path.join(__dirname, 'tx-builder-template.json')
+      const outputFilename = path.join(__dirname, `tx-builder-${dateTime}.json`)
+
+      const template = JSON.parse(fs.readFileSync(templateFilename, 'utf8'))
+      template.createdAt = dateTime
+      template.chainId = chainId
+      // template.meta.createdFromSafeAddress = '0x48301Fe520f72994d32eAd72E2B6A8447873CF50'
+
+      for (const entry of entries) {
+        const tx = await manager.populateTransaction.createTokenLockWallet(
+          entry.owner,
+          entry.beneficiary,
+          entry.managedAmount,
+          entry.startTime,
+          entry.endTime,
+          entry.periods,
+          entry.releaseStartTime,
+          entry.vestingCliffTime,
+          entry.revocable,
+        )
+        template.transactions.push({
+          to: manager.address,
+          value: 0,
+          data: tx.data,
+          contractMethod: null,
+          contractInputsValues: { _dst: '' },
+        })
+      }
+
+      // Save result into json file
+      fs.writeFileSync(outputFilename, JSON.stringify(template, null, 2))
+      logger.success(`Transaction batch saved to ${outputFilename}`)
     }
-    await queue.onIdle()
   })
 
 task('create-token-locks-simple', 'Create token lock contracts from file')
