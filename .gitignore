@@ -23,3 +23,7 @@ bin/
 
 
 .graphclient
+
+# Ignore tx-builder files
+tx-builder-*.json
+!tx-builder-template.json

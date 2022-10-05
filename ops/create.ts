@@ -412,6 +412,21 @@ task('create-token-locks', 'Create token lock contracts from file')
       template.chainId = chainId
       // template.meta.createdFromSafeAddress = '0x48301Fe520f72994d32eAd72E2B6A8447873CF50'
 
+      // Send funds to the manager
+      const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
+      const totalAmount = getTotalAmount(entries)
+      const currentBalance = await grt.balanceOf(manager.address)
+      if (currentBalance.lt(totalAmount)) {
+        const tx = await grt.populateTransaction.transfer(manager.address, totalAmount.sub(currentBalance))
+        template.transactions.push({
+          to: tokenAddress,
+          value: 0,
+          data: tx.data,
+          contractMethod: null,
+          contractInputsValues: { _dst: '' },
+        })
+      }
+
       for (const entry of entries) {
         const tx = await manager.populateTransaction.createTokenLockWallet(
           entry.owner,
