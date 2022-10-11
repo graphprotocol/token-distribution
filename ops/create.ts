@@ -417,11 +417,21 @@ task('create-token-locks', 'Create token lock contracts from file')
       const totalAmount = getTotalAmount(entries)
       const currentBalance = await grt.balanceOf(manager.address)
       if (currentBalance.lt(totalAmount)) {
-        const tx = await grt.populateTransaction.transfer(manager.address, totalAmount.sub(currentBalance))
+        const remainingBalance = totalAmount.sub(currentBalance)
+        // Use GRT.approve + the manager deposit function instead of GRT.transfer to be super safe
+        const approveTx = await grt.populateTransaction.approve(manager.address, remainingBalance)
         template.transactions.push({
           to: tokenAddress,
           value: 0,
-          data: tx.data,
+          data: approveTx.data,
+          contractMethod: null,
+          contractInputsValues: { _dst: '' },
+        })
+        const depositTx = await manager.populateTransaction.deposit(remainingBalance)
+        template.transactions.push({
+          to: manager.address,
+          value: 0,
+          data: depositTx.data,
           contractMethod: null,
           contractInputsValues: { _dst: '' },
         })
