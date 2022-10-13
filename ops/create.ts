@@ -163,6 +163,7 @@ const prettyConfigEntry = (config: TokenLockConfigEntry) => {
     Revocable: ${config.revocable}
     ReleaseCliff: ${config.releaseStartTime} (${prettyDate(config.releaseStartTime)})
     VestingCliff: ${config.vestingCliffTime} (${prettyDate(config.vestingCliffTime)})
+    Owner: ${config.owner}
     -> ContractAddress: ${config.contractAddress}
   `
 }
@@ -410,6 +411,7 @@ task('create-token-locks', 'Create token lock contracts from file')
       const totalAmount = getTotalAmount(entries)
       const currentBalance = await grt.balanceOf(manager.address)
       if (currentBalance.lt(totalAmount)) {
+        logger.log('Building manager funding transactions...')
         const remainingBalance = totalAmount.sub(currentBalance)
         // Use GRT.approve + the manager deposit function instead of GRT.transfer to be super safe
         const approveTx = await grt.populateTransaction.approve(manager.address, remainingBalance)
@@ -431,6 +433,8 @@ task('create-token-locks', 'Create token lock contracts from file')
       }
 
       for (const entry of entries) {
+        logger.log('Building tx...')
+        logger.log(prettyConfigEntry(entry))
         const tx = await manager.populateTransaction.createTokenLockWallet(
           entry.owner,
           entry.beneficiary,
@@ -446,8 +450,6 @@ task('create-token-locks', 'Create token lock contracts from file')
           to: manager.address,
           value: 0,
           data: tx.data,
-          contractMethod: null,
-          contractInputsValues: { _dst: '' },
         })
       }
 

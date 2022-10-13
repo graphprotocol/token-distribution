@@ -16,6 +16,7 @@ import 'hardhat-gas-reporter'
 // Tasks
 
 import './ops/create'
+import './ops/delete'
 import './ops/info'
 
 // Networks
