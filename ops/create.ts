@@ -9,6 +9,7 @@ import { NonceManager } from '@ethersproject/experimental'
 import { task } from 'hardhat/config'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import { boolean } from 'hardhat/internal/core/params/argumentTypes'
+import { TxBuilder } from './tx-builder'
 
 const { getAddress, keccak256, formatEther, parseEther } = utils
 
@@ -41,7 +42,7 @@ interface TokenLockDeployEntry extends TokenLockConfigEntry {
   txHash: string
 }
 
-const askConfirm = async () => {
+export const askConfirm = async () => {
   const res = await inquirer.prompt({
     name: 'confirm',
     type: 'confirm',
@@ -167,7 +168,7 @@ const prettyConfigEntry = (config: TokenLockConfigEntry) => {
   `
 }
 
-const prettyEnv = async (hre: HardhatRuntimeEnvironment) => {
+export const prettyEnv = async (hre: HardhatRuntimeEnvironment) => {
   const { deployer } = await hre.getNamedAccounts()
 
   const provider = hre.ethers.provider
@@ -261,7 +262,7 @@ const getTokenLockManagerOrFail = async (hre: HardhatRuntimeEnvironment) => {
   return manager
 }
 
-const waitTransaction = async (tx: ContractTransaction, confirmations = 1): Promise<ContractReceipt> => {
+export const waitTransaction = async (tx: ContractTransaction, confirmations = 1): Promise<ContractReceipt> => {
   logger.log(`> Transaction sent: ${tx.hash}`)
   const receipt = await tx.wait(confirmations)
   receipt.status ? logger.success(`Transaction succeeded: ${tx.hash}`) : logger.warn(`Transaction failed: ${tx.hash}`)
@@ -402,15 +403,7 @@ task('create-token-locks', 'Create token lock contracts from file')
       // Output tx builder json
       logger.info(`Creating transaction builder JSON file...`)
       const chainId = (await hre.ethers.provider.getNetwork()).chainId.toString()
-      const dateTime = new Date().getTime()
-
-      const templateFilename = path.join(__dirname, 'tx-builder-template.json')
-      const outputFilename = path.join(__dirname, `tx-builder-${dateTime}.json`)
-
-      const template = JSON.parse(fs.readFileSync(templateFilename, 'utf8'))
-      template.createdAt = dateTime
-      template.chainId = chainId
-      // template.meta.createdFromSafeAddress = '0x48301Fe520f72994d32eAd72E2B6A8447873CF50'
+      const txBuilder = new TxBuilder(chainId)
 
       // Send funds to the manager
       const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
@@ -420,7 +413,7 @@ task('create-token-locks', 'Create token lock contracts from file')
         const remainingBalance = totalAmount.sub(currentBalance)
         // Use GRT.approve + the manager deposit function instead of GRT.transfer to be super safe
         const approveTx = await grt.populateTransaction.approve(manager.address, remainingBalance)
-        template.transactions.push({
+        txBuilder.addTx({
           to: tokenAddress,
           value: 0,
           data: approveTx.data,
@@ -428,7 +421,7 @@ task('create-token-locks', 'Create token lock contracts from file')
           contractInputsValues: { _dst: '' },
         })
         const depositTx = await manager.populateTransaction.deposit(remainingBalance)
-        template.transactions.push({
+        txBuilder.addTx({
           to: manager.address,
           value: 0,
           data: depositTx.data,
@@ -449,7 +442,7 @@ task('create-token-locks', 'Create token lock contracts from file')
           entry.vestingCliffTime,
           entry.revocable,
         )
-        template.transactions.push({
+        txBuilder.addTx({
           to: manager.address,
           value: 0,
           data: tx.data,
@@ -459,8 +452,8 @@ task('create-token-locks', 'Create token lock contracts from file')
       }
 
       // Save result into json file
-      fs.writeFileSync(outputFilename, JSON.stringify(template, null, 2))
-      logger.success(`Transaction batch saved to ${outputFilename}`)
+      const outputFile = txBuilder.saveToFile()
+      logger.success(`Transaction batch saved to ${outputFile}`)
     }
   })
 
