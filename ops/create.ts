@@ -1,6 +1,5 @@
 import PQueue from 'p-queue'
 import fs from 'fs'
-import path from 'path'
 import consola from 'consola'
 import inquirer from 'inquirer'
 import { utils, BigNumber, Event, ContractTransaction, ContractReceipt, Contract, ContractFactory } from 'ethers'
@@ -280,6 +279,7 @@ task('create-token-locks', 'Create token lock contracts from file')
     'txBuilder',
     'Output transaction batch in JSON format, compatible with Gnosis Safe transaction builder. Does not deploy contracts',
   )
+  .addOptionalParam('txBuilderTemplate', 'File to use as a template for the transaction builder')
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
     // Get contracts
     const manager = await getTokenLockManagerOrFail(hre)
@@ -403,7 +403,7 @@ task('create-token-locks', 'Create token lock contracts from file')
       // Output tx builder json
       logger.info(`Creating transaction builder JSON file...`)
       const chainId = (await hre.ethers.provider.getNetwork()).chainId.toString()
-      const txBuilder = new TxBuilder(chainId)
+      const txBuilder = new TxBuilder(chainId, taskArgs.txBuilderTemplate)
 
       // Send funds to the manager
       const grt = await hre.ethers.getContractAt('ERC20', tokenAddress)
