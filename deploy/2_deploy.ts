@@ -37,11 +37,19 @@ const getTokenAddress = async (): Promise<string> => {
   }
 }
 
+const getDeploymentName = async (defaultName: string): Promise<string> => {
+  const res = await inquirer.prompt({
+    name: 'deployment-name',
+    type: 'input',
+    default: defaultName,
+    message: 'Save deployment as?',
+  })
+  return res['deployment-name']
+}
+
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = hre.deployments
   const { deployer } = await hre.getNamedAccounts()
-
-  logger.info('Deploying TokenLockManager...')
 
   // -- Graph Token --
 
@@ -55,16 +63,22 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // -- Token Lock Manager --
 
   // Deploy the master copy of GraphTokenLockWallet
-  const masterCopyDeploy = await deploy('GraphTokenLockWallet', {
+  logger.info('Deploying GraphTokenLockWallet master copy...')
+  const masterCopySaveName = await getDeploymentName('GraphTokenLockWallet')
+  const masterCopyDeploy = await deploy(masterCopySaveName, {
     from: deployer,
     log: true,
+    contract: 'GraphTokenLockWallet',
   })
 
   // Deploy the Manager that uses the master copy to clone contracts
-  const managerDeploy = await deploy('GraphTokenLockManager', {
+  logger.info('Deploying GraphTokenLockManager...')
+  const managerSaveName = await getDeploymentName('GraphTokenLockManager')
+  const managerDeploy = await deploy(managerSaveName, {
     from: deployer,
     args: [tokenAddress, masterCopyDeploy.address],
     log: true,
+    contract: 'GraphTokenLockManager',
   })
 
   // -- Fund --
