@@ -586,3 +586,82 @@ task('contracts:schedule', 'Show schedule of a set of contracts').setAction(
     }
   },
 )
+
+task('contracts:list-pending-lock', 'List all token lock contracts that have not accepted the lock')
+  .addOptionalParam('blocknumber', 'Block number to list contracts on')
+  .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
+    const block = await hre.ethers.provider.getBlock(blockNumber)
+    console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
+
+    // Get all wallets
+    const allWallets = await getWallets(block.number)
+    console.log(`Found ${allWallets.length} wallets total`)
+
+    // get isAccepted from chain, not part of the subgraph
+    console.log(`Checking lock status...`)
+    const queue = new PQueue({ concurrency: 10 })
+    const pendingLocks: TokenLockWallet[] = []
+    allWallets.map(async (wallet) => {
+      queue.add(async () => {
+        // Original contract didn't support accepting/cancelling lock, we can safely ignore those
+        // so we wrap isAccepted() call in try/catch and keep going if it fails
+        try {
+          const contract = await hre.ethers.getContractAt('GraphTokenLockWallet', wallet.id)
+          const isAccepted = await contract.isAccepted()
+          if (!isAccepted) {
+            pendingLocks.push(wallet)
+          }
+        } catch (error) {
+          console.log(`Could not call isAccepted() on ${wallet.id}.`)
+        }
+      })
+    })
+    await queue.onIdle()
+
+    console.log(`Found ${pendingLocks.length} wallets pending lock acceptance!`)
+
+    const headers = [
+      'beneficiary',
+      'managedAmount',
+      'startTime',
+      'endTime',
+      'periods',
+      'revocable',
+      'releaseStartTime',
+      'vestingCliffTime',
+      'contractAddress',
+      'initHash',
+      'txHash',
+      'manager',
+      'tokensReleased',
+      'tokensWithdrawn',
+      'tokensAvailable',
+      'tokensRevoked',
+      'blockNumberCreated',
+    ].join(',')
+    console.log(headers)
+
+    for (const wallet of pendingLocks) {
+      const csv = [
+        wallet.beneficiary,
+        toInt(wallet.managedAmount),
+        wallet.startTime,
+        wallet.endTime,
+        wallet.periods,
+        wallet.revocable,
+        wallet.releaseStartTime,
+        wallet.vestingCliffTime,
+        wallet.id,
+        wallet.initHash,
+        wallet.txHash,
+        wallet.manager,
+        toInt(wallet.tokensReleased),
+        toInt(wallet.tokensWithdrawn),
+        formatRoundGRT(getAvailableAmount(wallet, block.timestamp)),
+        toInt(wallet.tokensRevoked),
+        wallet.blockNumberCreated,
+      ].join(',')
+      console.log(csv)
+    }
+  })
