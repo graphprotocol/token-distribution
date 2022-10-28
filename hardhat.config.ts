@@ -19,6 +19,7 @@ import './ops/create'
 import './ops/delete'
 import './ops/info'
 import './ops/manager'
+import './ops/beneficiary'
 
 // Networks
 
