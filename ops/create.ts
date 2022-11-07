@@ -418,18 +418,14 @@ task('create-token-locks', 'Create token lock contracts from file')
         const approveTx = await grt.populateTransaction.approve(manager.address, remainingBalance)
         txBuilder.addTx({
           to: tokenAddress,
-          value: 0,
+          value: '0',
           data: approveTx.data,
-          contractMethod: null,
-          contractInputsValues: { _dst: '' },
         })
         const depositTx = await manager.populateTransaction.deposit(remainingBalance)
         txBuilder.addTx({
           to: manager.address,
-          value: 0,
+          value: '0',
           data: depositTx.data,
-          contractMethod: null,
-          contractInputsValues: { _dst: '' },
         })
       }
 
@@ -449,7 +445,7 @@ task('create-token-locks', 'Create token lock contracts from file')
         )
         txBuilder.addTx({
           to: manager.address,
-          value: 0,
+          value: '0',
           data: tx.data,
         })
       }
