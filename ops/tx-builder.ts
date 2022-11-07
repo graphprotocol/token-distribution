@@ -21,7 +21,7 @@ export class TxBuilder {
   }
 
   addTx(tx: any) {
-    this.contents.transactions.push({ ...tx, contractMethod: null, contractInputsValues: { _dst: '' } })
+    this.contents.transactions.push({ ...tx, contractMethod: null, contractInputsValues: null })
   }
 
   saveToFile() {
