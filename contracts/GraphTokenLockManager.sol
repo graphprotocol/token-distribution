@@ -33,7 +33,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
     EnumerableSet.AddressSet private _tokenDestinations;
 
     address public masterCopy;
-    IERC20 private _token;
+    IERC20 internal _token;
 
     // -- Events --
 

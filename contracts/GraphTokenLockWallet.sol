@@ -88,7 +88,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @dev Sets a new manager for this contract
      * @param _newManager Address of the new manager
      */
-    function _setManager(address _newManager) private {
+    function _setManager(address _newManager) internal {
         require(_newManager != address(0), "Manager cannot be empty");
         require(Address.isContract(_newManager), "Manager must be a contract");
 

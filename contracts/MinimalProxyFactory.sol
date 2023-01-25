@@ -3,12 +3,12 @@
 pragma solidity ^0.7.3;
 
 import "@openzeppelin/contracts/utils/Address.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import { Ownable as OZOwnable } from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Create2.sol";
 
 // Adapted from https://github.com/OpenZeppelin/openzeppelin-sdk/blob/v2.5.0/packages/lib/contracts/upgradeability/ProxyFactory.sol
 // Based on https://eips.ethereum.org/EIPS/eip-1167
-contract MinimalProxyFactory is Ownable {
+contract MinimalProxyFactory is OZOwnable {
     // -- Events --
 
     event ProxyCreated(address indexed proxy);
@@ -19,7 +19,7 @@ contract MinimalProxyFactory is Ownable {
      * @param _implementation Address of the proxy target implementation
      * @return Address of the counterfactual MinimalProxy
      */
-    function getDeploymentAddress(bytes32 _salt, address _implementation) external view returns (address) {
+    function getDeploymentAddress(bytes32 _salt, address _implementation) public view returns (address) {
         return Create2.computeAddress(_salt, keccak256(_getContractCreationCode(_implementation)), address(this));
     }
 
