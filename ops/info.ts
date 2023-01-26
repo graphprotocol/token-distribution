@@ -1,7 +1,7 @@
 import PQueue from 'p-queue'
 import { task } from 'hardhat/config'
 import '@nomiclabs/hardhat-ethers'
-import { BigNumber, Contract, utils } from 'ethers'
+import { BigNumber, Contract, utils, providers } from 'ethers'
 import { HardhatRuntimeEnvironment } from 'hardhat/types'
 import CoinGecko from 'coingecko-api'
 import { Block } from '@ethersproject/abstract-provider'
@@ -18,6 +18,7 @@ import {
 import { ExecutionResult } from 'graphql'
 
 const CoinGeckoClient = new CoinGecko()
+const RPC_CONCURRENCY = 10
 
 // Types
 
@@ -44,8 +45,9 @@ type TokenLockWallet = Pick<
   | 'tokensWithdrawn'
   | 'tokensRevoked'
   | 'blockNumberCreated'
->
+> & { tokensUsed?: BigNumber }
 type GraphNetwork = Pick<GraphClient.GraphNetwork, 'id' | 'totalSupply'>
+
 // Helpers
 
 const toInt = (s) => parseInt(s) / 1e18
@@ -222,6 +224,30 @@ function getFreeAmount(wallet: TokenLockWallet, blockTimestamp: number): BigNumb
   return getAvailableAmount(wallet, blockTimestamp)
 }
 
+type WalletInfo = {
+  usedAmount: BigNumber
+  currentBalance: BigNumber
+}
+
+async function getExtendedWalletInfo(
+  contracts: Contract[],
+  blockTag: providers.BlockTag,
+): Promise<{ [key: string]: WalletInfo }> {
+  const walletInfoEntries: { [key: string]: WalletInfo } = {}
+  const queue = new PQueue({ concurrency: RPC_CONCURRENCY })
+  contracts.map(async (contract) => {
+    queue.add(async () => {
+      const walletInfo = {
+        usedAmount: await contract.usedAmount({ blockTag: blockTag }),
+        currentBalance: await contract.currentBalance({ blockTag: blockTag }),
+      }
+      walletInfoEntries[contract.address] = walletInfo
+    })
+  })
+  await queue.onIdle()
+  return walletInfoEntries
+}
+
 // Summaries
 
 class TokenSummary {
@@ -306,10 +332,26 @@ class TokenSummary {
 task('contracts:list', 'List all token lock contracts')
   .addOptionalParam('blocknumber', 'Block number to list contracts on')
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
+    // fetch block
     const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
     const block = await hre.ethers.provider.getBlock(blockNumber)
     console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
+
+    // fetch wallets
+    console.log('Fetching wallets...')
     const allWallets = await getWallets(block.number)
+    console.log(`${allWallets.length} wallets found`)
+
+    // populate token amounts used in the protocol
+    console.log('Populating used amounts...')
+    const extendedWalletInfo = await getExtendedWalletInfo(
+      await Promise.all(
+        allWallets.map(async (wallet) => {
+          return hre.ethers.getContractAt('GraphTokenLockWallet', wallet.id)
+        }),
+      ),
+      blockNumber,
+    )
 
     const headers = [
       'beneficiary',
@@ -328,10 +370,13 @@ task('contracts:list', 'List all token lock contracts')
       'tokensWithdrawn',
       'tokensAvailable',
       'tokensRevoked',
+      'tokensUsed',
+      'tokensBalance',
       'blockNumberCreated',
     ].join(',')
     console.log(headers)
 
+    // print wallet entries
     for (const wallet of allWallets) {
       const csv = [
         wallet.beneficiary,
@@ -348,8 +393,10 @@ task('contracts:list', 'List all token lock contracts')
         wallet.manager,
         toInt(wallet.tokensReleased),
         toInt(wallet.tokensWithdrawn),
-        formatRoundGRT(getAvailableAmount(wallet, block.timestamp)),
+        formatGRT(getAvailableAmount(wallet, block.timestamp)),
         toInt(wallet.tokensRevoked),
+        formatGRT(extendedWalletInfo[wallet.id].usedAmount),
+        formatGRT(extendedWalletInfo[wallet.id].currentBalance),
         wallet.blockNumberCreated,
       ].join(',')
       console.log(csv)
@@ -389,7 +436,7 @@ task('contracts:summary', 'Show summary of balances')
     }
 
     // Calculate summaries (for revocable vestings)
-    const queue = new PQueue({ concurrency: 10 })
+    const queue = new PQueue({ concurrency: RPC_CONCURRENCY })
     const revocableSummary: TokenSummary = new TokenSummary(block)
     revocableWallets.map(async (wallet) => {
       queue.add(async () => {
@@ -600,7 +647,7 @@ task('contracts:list-pending-lock', 'List all token lock contracts that have not
 
     // get isAccepted from chain, not part of the subgraph
     console.log(`Checking lock status...`)
-    const queue = new PQueue({ concurrency: 10 })
+    const queue = new PQueue({ concurrency: RPC_CONCURRENCY })
     const pendingLocks: TokenLockWallet[] = []
     allWallets.map(async (wallet) => {
       queue.add(async () => {
