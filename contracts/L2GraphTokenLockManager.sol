@@ -26,21 +26,32 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
     using SafeERC20 for IERC20;
 
     struct MigratedWalletData {
+        address l1Address;
         address owner;
         address beneficiary;
         uint256 managedAmount;
         uint256 startTime;
         uint256 endTime;
-        uint256 periods;
-        uint256 releaseStartTime;
-        uint256 vestingCliffTime;
-        bool revocable; // Whether to use vesting for locked funds
-        uint256 releasedAmount;
-        uint256 usedAmount;
     }
 
     address immutable public l2Gateway;
     address immutable public l1Migrator;
+    /// L1 address => L2 address
+    mapping(address => address) public l1WalletToL2Wallet;
+    /// L2 address => L1 address
+    mapping(address => address) public l2WalletToL1Wallet;
+
+    event TokenLockCreatedFromL1(
+        address indexed contractAddress,
+        bytes32 initHash,
+        address indexed beneficiary,
+        uint256 managedAmount,
+        uint256 startTime,
+        uint256 endTime,
+        address indexed l1Address
+    );
+
+    event LockedTokensReceivedFromL1(address indexed l1Address, address indexed l2Address, uint256 amount);
 
     /**
      * @dev Checks that the sender is the L2GraphTokenGateway.
@@ -73,25 +84,29 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
         require(_from == l1Migrator, "ONLY_MIGRATOR");
         (MigratedWalletData memory walletData) = abi.decode(_data, (MigratedWalletData));
 
-        // Create contract using a minimal proxy and call initializer
-       (bytes32 initHash, address contractAddress) = _deployFromL1(keccak256(_data), walletData);
+        if (l1WalletToL2Wallet[walletData.l1Address] != address(0)) {
+            // If the wallet was already migrated, just send the tokens to the L2 address
+            _token.safeTransfer(l1WalletToL2Wallet[walletData.l1Address], _amount);
+        } else {
+            // Create contract using a minimal proxy and call initializer
+            (bytes32 initHash, address contractAddress) = _deployFromL1(keccak256(_data), walletData);
+            l1WalletToL2Wallet[walletData.l1Address] = contractAddress;
+            l2WalletToL1Wallet[contractAddress] = walletData.l1Address;
 
-        // Send managed amount to the created contract
-        _token.safeTransfer(contractAddress, _amount);
+            // Send managed amount to the created contract
+            _token.safeTransfer(contractAddress, _amount);
 
-        emit TokenLockCreated(
-            contractAddress,
-            initHash,
-            walletData.beneficiary,
-            address(_token),
-            walletData.managedAmount,
-            walletData.startTime,
-            walletData.endTime,
-            walletData.periods,
-            walletData.releaseStartTime,
-            walletData.vestingCliffTime,
-            walletData.revocable == true ? IGraphTokenLock.Revocability.Enabled : IGraphTokenLock.Revocability.Disabled
-        );
+            emit TokenLockCreatedFromL1(
+                contractAddress,
+                initHash,
+                walletData.beneficiary,
+                walletData.managedAmount,
+                walletData.startTime,
+                walletData.endTime,
+                walletData.l1Address
+            );
+        }
+        emit LockedTokensReceivedFromL1(walletData.l1Address, l1WalletToL2Wallet[walletData.l1Address], _amount);
     }
 
     function _deployFromL1(bytes32 _salt, MigratedWalletData memory _walletData) internal returns (bytes32, address) {
@@ -102,7 +117,7 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
 
     function _encodeInitializer(MigratedWalletData memory _walletData) internal view returns (bytes memory) {
         return abi.encodeWithSignature(
-            "initializeFromL1(address,address,(address,address,uint256,uint256,uint256,uint256,uint256,uint256,bool,uint256,uint256)))",
+            "initializeFromL1(address,address,(address,address,address,uint256,uint256,uint256)))",
             address(this),
             address(_token),
             _walletData

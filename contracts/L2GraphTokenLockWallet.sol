@@ -45,18 +45,11 @@ contract L2GraphTokenLockWallet is GraphTokenLockWallet {
 
         startTime = _walletData.startTime;
         endTime = _walletData.endTime;
-        periods = _walletData.periods;
+        periods = 1;
 
         // Optionals
-        releaseStartTime = _walletData.releaseStartTime;
-        vestingCliffTime = _walletData.vestingCliffTime;
-        if (_walletData.revocable) {
-            revocable = Revocability.Enabled;
-        } else {
-            revocable = Revocability.Disabled;
-        }
-        releasedAmount = _walletData.releasedAmount;
-        usedAmount = _walletData.usedAmount;
+        releaseStartTime = _walletData.endTime;
+        revocable = Revocability.Disabled;
 
         _setManager(_manager);
     }

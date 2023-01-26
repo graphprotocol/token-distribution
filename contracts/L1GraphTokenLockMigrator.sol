@@ -30,12 +30,12 @@ contract GraphTokenLockMigrator is MinimalProxyFactory {
         l1Gateway = _l1Gateway;
     }
 
-    function migrateGraphTokenLockWalletToL2(
+    function depositToL2Locked(
+        uint256 _amount,
         uint256 _maxGas,
         uint256 _gasPriceBid,
         uint256 _maxSubmissionCost
     ) external {
-        require(migratedWalletAddress[msg.sender] == address(0), "ALREADY_MIGRATED");
         // Check that msg.sender is a GraphTokenLockWallet
         // That uses GRT and has a corresponding manager set in L2.
         GraphTokenLockWallet wallet = GraphTokenLockWallet(msg.sender);
@@ -45,36 +45,35 @@ contract GraphTokenLockMigrator is MinimalProxyFactory {
         require(l2Manager != address(0), "INVALID_MANAGER");
         require(wallet.isAccepted(), "!ACCEPTED");
         require(wallet.isInitialized(), "!INITIALIZED");
-        require(!wallet.isRevoked(), "REVOKED");
+        require(wallet.revocable() != IGraphTokenLock.Revocability.Enabled, "REVOCABLE");
+        require(_amount <= graphToken.balanceOf(msg.sender), "INSUFFICIENT_BALANCE");
+        require(_amount != 0, "ZERO_AMOUNT");
 
         // Extract all the storage variables from the GraphTokenLockWallet
         L2GraphTokenLockManager.MigratedWalletData memory data = L2GraphTokenLockManager.MigratedWalletData({
+            l1Address: msg.sender,
             owner: wallet.owner(),
             beneficiary: wallet.beneficiary(),
             managedAmount: wallet.managedAmount(),
             startTime: wallet.startTime(),
-            endTime: wallet.endTime(),
-            periods: wallet.periods(),
-            releaseStartTime: wallet.releaseStartTime(),
-            vestingCliffTime: wallet.vestingCliffTime(),
-            revocable: wallet.revocable() == IGraphTokenLock.Revocability.Enabled,
-            releasedAmount: wallet.releasedAmount(),
-            usedAmount: wallet.usedAmount()
+            endTime: wallet.endTime()
         });
         // Build the encoded message for L2
         bytes memory encodedData = abi.encode(data);
-        migratedWalletAddress[msg.sender] = getDeploymentAddress(keccak256(encodedData), l2Implementation);
-        // Pull all the tokens from the GraphTokenLockWallet
-        uint256 amount = graphToken.balanceOf(msg.sender);
-        graphToken.transferFrom(msg.sender, address(this), amount);
+
+        if (migratedWalletAddress[msg.sender] == address(0)) {
+            migratedWalletAddress[msg.sender] = getDeploymentAddress(keccak256(encodedData), l2Implementation);
+        }
+
+        graphToken.transferFrom(msg.sender, address(this), _amount);
     
         // Send the tokens with a message through the L1GraphTokenGateway to the L2GraphTokenLockManager
-        graphToken.approve(address(l1Gateway), amount);
+        graphToken.approve(address(l1Gateway), _amount);
         bytes memory transferData = abi.encode(_maxSubmissionCost, encodedData);
         l1Gateway.outboundTransfer(
             address(graphToken),
             l2Manager,
-            amount,
+            _amount,
             _maxGas,
             _gasPriceBid,
             transferData
