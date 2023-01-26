@@ -10,14 +10,12 @@ import { GraphTokenLockWallet } from "./GraphTokenLockWallet.sol";
 import { MinimalProxyFactory } from "./MinimalProxyFactory.sol";
 import { IGraphTokenLock } from "./IGraphTokenLock.sol";
 import { Ownable as OZOwnable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { IStaking } from "./IStaking.sol";
 
 contract GraphTokenLockMigrator is MinimalProxyFactory {
 
     IERC20 public immutable graphToken;
     address public immutable l2Implementation;
     ITokenGateway public immutable l1Gateway;
-    IStaking public immutable staking;
     /// L1 GraphTokenLockManager => L2GraphTokenLockManager
     mapping(address => address) public l2LockManager;
     mapping(address => address) public migratedWalletAddress;
@@ -25,13 +23,11 @@ contract GraphTokenLockMigrator is MinimalProxyFactory {
     constructor(
         IERC20 _graphToken,
         address _l2Implementation,
-        ITokenGateway _l1Gateway,
-        IStaking _staking
+        ITokenGateway _l1Gateway
     ) OZOwnable() {
         graphToken = _graphToken;
         l2Implementation = _l2Implementation;
         l1Gateway = _l1Gateway;
-        staking = _staking;
     }
 
     function migrateGraphTokenLockWalletToL2(
@@ -50,8 +46,6 @@ contract GraphTokenLockMigrator is MinimalProxyFactory {
         require(wallet.isAccepted(), "!ACCEPTED");
         require(wallet.isInitialized(), "!INITIALIZED");
         require(!wallet.isRevoked(), "REVOKED");
-
-        require(staking.stakes(msg.sender).tokensAllocated == 0, "MUST_CLOSE_ALLOCATIONS");
 
         // Extract all the storage variables from the GraphTokenLockWallet
         L2GraphTokenLockManager.MigratedWalletData memory data = L2GraphTokenLockManager.MigratedWalletData({
