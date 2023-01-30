@@ -14,11 +14,14 @@ import {
   TokenLockWalletsQuery,
   CuratorWalletsDocument,
   CuratorWalletsQuery,
+  GraphAccountQuery,
+  GraphAccountDocument,
 } from '../.graphclient'
 import { ExecutionResult } from 'graphql'
 
 const CoinGeckoClient = new CoinGecko()
 const RPC_CONCURRENCY = 10
+const BLOCK_DRIFT = 10
 
 // Types
 
@@ -47,6 +50,11 @@ type TokenLockWallet = Pick<
   | 'blockNumberCreated'
 > & { tokensUsed?: BigNumber }
 type GraphNetwork = Pick<GraphClient.GraphNetwork, 'id' | 'totalSupply'>
+type GraphAccount = Pick<GraphClient.GraphAccount, 'id'> & {
+  indexer?: Pick<GraphClient.Indexer, 'stakedTokens'>
+  curator?: Pick<GraphClient.Curator, 'totalSignalledTokens' | 'totalUnsignalledTokens'>
+  delegator?: Pick<GraphClient.Delegator, 'totalStakedTokens' | 'totalUnstakedTokens' | 'totalRealizedRewards'>
+}
 
 // Helpers
 
@@ -182,6 +190,11 @@ async function getCuratorWallets(blockNumber: number): Promise<TokenLockWallet[]
   return result.data ? result.data.tokenLockWallets : []
 }
 
+async function getGraphAccount(accountId: string, blockNumber: number): Promise<GraphAccount> {
+  const result: ExecutionResult<GraphAccountQuery> = await execute(GraphAccountDocument, { accountId, blockNumber })
+  return result.data.graphAccount
+}
+
 // Calculations
 
 function getAvailableAmount(wallet: TokenLockWallet, blockTimestamp: number): BigNumber {
@@ -225,26 +238,42 @@ function getFreeAmount(wallet: TokenLockWallet, blockTimestamp: number): BigNumb
 }
 
 type WalletInfo = {
-  usedAmount: BigNumber
-  currentBalance: BigNumber
+  tokensUsed: BigNumber
+  tokensBalance: BigNumber
+  graphAccount: GraphAccount
 }
 
 async function getExtendedWalletInfo(
   contracts: Contract[],
-  blockTag: providers.BlockTag,
+  blockNumber: number,
 ): Promise<{ [key: string]: WalletInfo }> {
   const walletInfoEntries: { [key: string]: WalletInfo } = {}
   const queue = new PQueue({ concurrency: RPC_CONCURRENCY })
+
   contracts.map(async (contract) => {
     queue.add(async () => {
-      const walletInfo = {
-        usedAmount: await contract.usedAmount({ blockTag: blockTag }),
-        currentBalance: await contract.currentBalance({ blockTag: blockTag }),
+      // Get subgraph data
+      const graphAccount = await getGraphAccount(contract.address, blockNumber)
+
+      // Get on-chain data
+      const tokensUsed = await contract.usedAmount({ blockTag: blockNumber })
+      const tokensBalance = await contract.currentBalance({ blockTag: blockNumber })
+
+      // Populate extra data
+      walletInfoEntries[contract.address] = {
+        tokensUsed,
+        tokensBalance,
+        graphAccount,
       }
-      walletInfoEntries[contract.address] = walletInfo
+      console.log({
+        tokensUsed,
+        tokensBalance,
+        graphAccount,
+      })
     })
   })
   await queue.onIdle()
+
   return walletInfoEntries
 }
 
@@ -333,13 +362,14 @@ task('contracts:list', 'List all token lock contracts')
   .addOptionalParam('blocknumber', 'Block number to list contracts on')
   .setAction(async (taskArgs, hre: HardhatRuntimeEnvironment) => {
     // fetch block
-    const blockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
-    const block = await hre.ethers.provider.getBlock(blockNumber)
+    const targetBlockNumber = taskArgs.blocknumber ? parseInt(taskArgs.blocknumber) : 'latest'
+    const block = await hre.ethers.provider.getBlock(targetBlockNumber)
+    const blockNumber = block.number - BLOCK_DRIFT
     console.log('Block:', block.number, '/', new Date(block.timestamp * 1000).toDateString(), '\n')
 
     // fetch wallets
     console.log('Fetching wallets...')
-    const allWallets = await getWallets(block.number)
+    const allWallets = await getWallets(blockNumber)
     console.log(`${allWallets.length} wallets found`)
 
     // populate token amounts used in the protocol
@@ -373,11 +403,23 @@ task('contracts:list', 'List all token lock contracts')
       'tokensUsed',
       'tokensBalance',
       'blockNumberCreated',
+      'tokensUsedStaked',
+      'tokensUsedDelegated',
     ].join(',')
     console.log(headers)
 
-    // print wallet entries
     for (const wallet of allWallets) {
+      // get used tokens in the protocol
+      const extendedWallet = extendedWalletInfo[wallet.id]
+      const { graphAccount, tokensUsed, tokensBalance } = extendedWallet
+      const tokensUsedStaked = BigNumber.from(graphAccount.indexer?.stakedTokens || 0)
+      const tokensUsedDelegated = graphAccount.delegator
+        ? BigNumber.from(graphAccount.delegator.totalStakedTokens).sub(
+            BigNumber.from(graphAccount.delegator.totalUnstakedTokens),
+          )
+        : BigNumber.from(0)
+
+      // print wallet entries
       const csv = [
         wallet.beneficiary,
         toInt(wallet.managedAmount),
@@ -395,9 +437,11 @@ task('contracts:list', 'List all token lock contracts')
         toInt(wallet.tokensWithdrawn),
         formatGRT(getAvailableAmount(wallet, block.timestamp)),
         toInt(wallet.tokensRevoked),
-        formatGRT(extendedWalletInfo[wallet.id].usedAmount),
-        formatGRT(extendedWalletInfo[wallet.id].currentBalance),
+        formatGRT(tokensUsed),
+        formatGRT(tokensBalance),
         wallet.blockNumberCreated,
+        formatGRT(tokensUsedStaked),
+        formatGRT(tokensUsedDelegated),
       ].join(',')
       console.log(csv)
     }
