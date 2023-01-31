@@ -11,7 +11,7 @@ import { MinimalProxyFactory } from "./MinimalProxyFactory.sol";
 import { IGraphTokenLock } from "./IGraphTokenLock.sol";
 import { Ownable as OZOwnable } from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract GraphTokenLockMigrator is MinimalProxyFactory {
+contract L1GraphTokenLockMigrator is MinimalProxyFactory {
 
     IERC20 public immutable graphToken;
     address public immutable l2Implementation;
