@@ -34,7 +34,7 @@ contract L2GraphTokenLockWallet is GraphTokenLockWallet {
         address _token,
         L2GraphTokenLockManager.MigratedWalletData calldata _walletData
     ) external {
-        
+        require(!isInitialized, "Already initialized");
         isInitialized = true;
 
         Ownable.initialize(_walletData.owner);
