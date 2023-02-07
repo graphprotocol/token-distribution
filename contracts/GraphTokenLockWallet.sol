@@ -193,4 +193,12 @@ contract GraphTokenLockWallet is GraphTokenLock {
             require(usedAmount <= vestedAmount(), "Cannot use more tokens than vested amount");
         }
     }
+
+    /**
+     * @notice Receive function that always reverts.
+     * @dev Only included to supress warnings, see https://github.com/ethereum/solidity/issues/10159
+     */
+    receive() external payable {
+        revert("Bad call");
+    }
 }
