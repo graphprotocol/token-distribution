@@ -17,10 +17,11 @@ contract MinimalProxyFactory is OZOwnable {
      * @notice Gets the deterministic CREATE2 address for MinimalProxy with a particular implementation
      * @param _salt Bytes32 salt to use for CREATE2
      * @param _implementation Address of the proxy target implementation
+     * @param _deployer Address of the deployer
      * @return Address of the counterfactual MinimalProxy
      */
-    function getDeploymentAddress(bytes32 _salt, address _implementation) public view returns (address) {
-        return Create2.computeAddress(_salt, keccak256(_getContractCreationCode(_implementation)), address(this));
+    function getDeploymentAddress(bytes32 _salt, address _implementation, address _deployer) public pure returns (address) {
+        return Create2.computeAddress(_salt, keccak256(_getContractCreationCode(_implementation)), _deployer);
     }
 
     /**

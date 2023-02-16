@@ -20,6 +20,9 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
     mapping(address => address) public l2LockManager;
     mapping(address => address) public migratedWalletAddress;
 
+    event L2LockManagerSet(address indexed l1LockManager, address indexed l2LockManager);
+    event LockedFundsSentToL2(address indexed l1Wallet, address indexed l2Wallet, address indexed l1LockManager, uint256 amount);
+
     constructor(
         IERC20 _graphToken,
         address _l2Implementation,
@@ -28,6 +31,11 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         graphToken = _graphToken;
         l2Implementation = _l2Implementation;
         l1Gateway = _l1Gateway;
+    }
+
+    function setL2LockManager(address _l1LockManager, address _l2LockManager) external onlyOwner {
+        l2LockManager[_l1LockManager] = _l2LockManager;
+        emit L2LockManagerSet(_l1LockManager, _l2LockManager);
     }
 
     function depositToL2Locked(
@@ -62,7 +70,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         bytes memory encodedData = abi.encode(data);
 
         if (migratedWalletAddress[msg.sender] == address(0)) {
-            migratedWalletAddress[msg.sender] = getDeploymentAddress(keccak256(encodedData), l2Implementation);
+            migratedWalletAddress[msg.sender] = getDeploymentAddress(keccak256(encodedData), l2Implementation, l2Manager);
         }
 
         graphToken.transferFrom(msg.sender, address(this), _amount);
@@ -78,5 +86,6 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
             _gasPriceBid,
             transferData
         );
+        emit LockedFundsSentToL2(msg.sender, migratedWalletAddress[msg.sender], l1Manager, _amount);
     }
 }
