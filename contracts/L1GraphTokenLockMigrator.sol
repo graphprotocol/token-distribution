@@ -33,6 +33,9 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         address l2LockManager,
         uint256 amount
     );
+    event ETHDeposited(address indexed tokenLock, uint256 amount);
+    event ETHWithdrawn(address indexed tokenLock, address indexed destination, uint256 amount);
+    event ETHPulled(address indexed tokenLock, uint256 amount);
 
     constructor(
         IERC20 _graphToken,
@@ -53,7 +56,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
 
     function depositETH(address _tokenLock) external payable {
         tokenLockETHBalances[_tokenLock] = tokenLockETHBalances[_tokenLock].add(msg.value);
-        // TODO emit something
+        emit ETHDeposited(_tokenLock, msg.value);
     }
 
     function withdrawETH(address _destination, uint256 _amount) external {
@@ -63,7 +66,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         tokenLockETHBalances[msg.sender] -= _amount;
         (bool success, ) = payable(_destination).call{ value: _amount }("");
         require(success, "TRANSFER_FAILED");
-        // TODO emit something
+        emit ETHWithdrawn(msg.sender, _destination, _amount);
     }
 
     function pullETH(address _tokenLock, uint256 _amount) external {
@@ -72,6 +75,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         tokenLockETHBalances[_tokenLock] -= _amount;
         (bool success, ) = staking.call{ value: _amount }("");
         require(success, "TRANSFER_FAILED");
+        emit ETHPulled(_tokenLock, _amount);
     }
 
     function depositToL2Locked(

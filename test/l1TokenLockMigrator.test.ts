@@ -1,4 +1,4 @@
-import { constants, BigNumber, Wallet } from 'ethers'
+import { constants, BigNumber, Wallet, Signer } from 'ethers'
 import { expect } from 'chai'
 import { deployments, ethers } from 'hardhat'
 
@@ -13,6 +13,7 @@ import { L1TokenGatewayMock } from '../build/typechain/contracts/L1TokenGatewayM
 import { L1GraphTokenLockMigrator } from '../build/typechain/contracts/L1GraphTokenLockMigrator'
 
 import { L1GraphTokenLockMigrator__factory } from '../build/typechain/contracts/factories/L1GraphTokenLockMigrator__factory'
+import { Staking__factory } from '@graphprotocol/contracts/dist/types/factories/Staking__factory'
 
 import { defaultInitArgs, Revocability, TokenLockParameters } from './config'
 import {
@@ -25,7 +26,7 @@ import {
   advanceBlocks,
   toBN,
 } from './network'
-import { defaultAbiCoder, keccak256 } from 'ethers/lib/utils'
+import { defaultAbiCoder, hexValue, keccak256, parseEther } from 'ethers/lib/utils'
 
 const { AddressZero, MaxUint256 } = constants
 
@@ -40,6 +41,11 @@ const moveToTime = async (tokenLock: GraphTokenLockWallet, target: BigNumber, bu
   const ts = await tokenLock.currentTime()
   const delta = target.sub(ts).add(buffer)
   return advanceTimeAndBlock(delta.toNumber())
+}
+
+async function impersonateAccount(address: string): Promise<Signer> {
+  await ethers.provider.send('hardhat_impersonateAccount', [address])
+  return ethers.getSigner(address)
 }
 
 // Fixture
@@ -104,6 +110,7 @@ async function authProtocolFunctions(
   await tokenLockManager.setAuthFunctionCall('unstake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('withdraw()', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('depositToL2Locked(uint256,uint256,uint256,uint256)', migratorAddress)
+  await tokenLockManager.setAuthFunctionCall('withdrawETH(address,uint256)', migratorAddress)
 }
 
 // -- Tests --
@@ -126,6 +133,7 @@ describe('L1GraphTokenLockMigrator', () => {
   let staking: StakingMock
   let gateway: L1TokenGatewayMock
   let migrator: L1GraphTokenLockMigrator
+  let lockAsMigrator: L1GraphTokenLockMigrator
 
   let initArgs: TokenLockParameters
 
@@ -174,6 +182,17 @@ describe('L1GraphTokenLockMigrator', () => {
 
     initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
     tokenLock = await initWithArgs(initArgs)
+
+    // Use the tokenLock contract as if it were the L1GraphTokenLockMigrator contract
+    lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+
+    // Add the migrator and staking contracts as token destinations
+    await tokenLockManager.addTokenDestination(migrator.address)
+    await tokenLockManager.addTokenDestination(staking.address)
+  
+    // Approve contracts to pull tokens from the token lock
+    await tokenLock.connect(beneficiary.signer).approveProtocol()
+    await migrator.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
   })
 
   describe('Registering L2 managers', function () {
@@ -183,30 +202,51 @@ describe('L1GraphTokenLockMigrator', () => {
     })
     it('sets the L2 manager for an L1 manager', async function () {
       await migrator.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
-      expect(await migrator.l2LockManager(tokenLockManager.address)).to.equal(l2ManagerMock.address)
+      expect(await migrator.l2LockManager(tokenLockManager.address)).to.eq(l2ManagerMock.address)
     })
   })
   describe('Depositing, withdrawing and pulling ETH', function () {
-    it('allows someone to deposit eth into their token lock account')
-    it('allows someone to withdraw eth from their token lock account')
-    it('allows the Staking contract to pull ETH from the token lock account')
-    it('does not allow someone else to pull ETH from the token lock account')
+    it('allows someone to deposit eth into their token lock account', async function () {
+      const tx = migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await expect(tx).emit(migrator, 'ETHDeposited').withArgs(tokenLock.address, ticketValue)
+      expect(await ethers.provider.getBalance(migrator.address)).to.eq(ticketValue)
+      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue)
+    })
+    it('adds to the token lock ETH balance when called a second time', async function () {
+      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue)
+      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue.mul(2))
+    })
+    it('allows someone to withdraw eth from their token lock account', async function () {
+      // We'll withdraw to the "hacker" account so that we don't need to subtract gas
+      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const prevBalance = await ethers.provider.getBalance(hacker.address)
+      const tx = lockAsMigrator.connect(beneficiary.signer).withdrawETH(hacker.address, ticketValue)
+      await expect(tx).emit(migrator, 'ETHWithdrawn').withArgs(tokenLock.address, hacker.address, ticketValue)
+      expect(await ethers.provider.getBalance(migrator.address)).to.eq(0)
+      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(0)
+      expect(await ethers.provider.getBalance(hacker.address)).to.eq(prevBalance.add(ticketValue))
+    })
+    it('allows the Staking contract to pull ETH from the token lock account', async function () {
+      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const prevBalance = parseEther('1')
+      await ethers.provider.send('hardhat_setBalance', [staking.address, hexValue(prevBalance)])
+      const stakingSigner = await impersonateAccount(staking.address)
+      const tx = migrator.connect(stakingSigner).pullETH(tokenLock.address, ticketValue)
+      const receipt = await (await tx).wait()
+      await expect(tx).emit(migrator, 'ETHPulled').withArgs(tokenLock.address, ticketValue)
+      expect(await ethers.provider.getBalance(migrator.address)).to.eq(0)
+      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(0)
+      expect(await ethers.provider.getBalance(staking.address)).to.eq(prevBalance.add(ticketValue).sub(receipt.gasUsed.mul(receipt.effectiveGasPrice)))
+    })
+    it('does not allow someone else to pull ETH from the token lock account', async function () {
+      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const tx = migrator.connect(hacker.signer).pullETH(tokenLock.address, ticketValue)
+      await expect(tx).revertedWith('ONLY_STAKING')
+    })
   })
   describe('Depositing to L2', function () {
-    let lockAsMigrator: L1GraphTokenLockMigrator
-
-    beforeEach(async () => {
-      // Use the tokenLock contract as if it were the L1GraphTokenLockMigrator contract
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
-
-      // Add the migrator contract as token destination
-      await tokenLockManager.addTokenDestination(migrator.address)
-
-      // Approve contracts to pull tokens from the token lock
-      await tokenLock.connect(beneficiary.signer).approveProtocol()
-      await migrator.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
-    })
-
     it('rejects calls if the manager is not registered', async function () {
       await migrator.setL2LockManager(tokenLockManager.address, AddressZero)
       const tx = lockAsMigrator
@@ -278,6 +318,21 @@ describe('L1GraphTokenLockMigrator', () => {
         .depositToL2Locked(toGRT('0'), maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('ZERO_AMOUNT')
     })
+    it('rejects calls if the wallet does not have a sufficient ETH balance previously deposited', async function () {
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(toGRT('35000000'), maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx).revertedWith('INSUFFICIENT_ETH_BALANCE')
+
+      // Try again but with an ETH balance that is insufficient by 1 wei
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.sub(1) })
+      const tx2 = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(toGRT('35000000'), maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx2).revertedWith('INSUFFICIENT_ETH_BALANCE')
+    })
     it('sends tokens and a callhook to the L2 manager registered for the wallet', async function () {
       await tokenLock.connect(beneficiary.signer).acceptLock()
       const amountToSend = toGRT('1000')
@@ -301,6 +356,14 @@ describe('L1GraphTokenLockMigrator', () => {
         l2ManagerMock.address,
       )
 
+      const expectedOutboundCalldata = await gateway.getOutboundCalldata(
+        grt.address,
+        migrator.address,
+        l2ManagerMock.address,
+        amountToSend,
+        expectedWalletData,
+      )
+    
       // Good hacker pays for the gas
       await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
       const tx = lockAsMigrator
@@ -315,10 +378,147 @@ describe('L1GraphTokenLockMigrator', () => {
           l2ManagerMock.address,
           amountToSend,
         )
-      // TODO: check the events emitted from the mock gateway,
+      // Check the events emitted from the mock gateway
+      await expect(tx)
+        .emit(gateway, 'FakeTxToL2')
+        .withArgs(
+          migrator.address,
+          ticketValue,
+          maxGas,
+          gasPrice,
+          maxSubmissionCost,
+          expectedOutboundCalldata
+        )
       // and check that the right amount of funds have been pulled from the token lock
+      expect(await grt.balanceOf(tokenLock.address)).to.equal(initArgs.managedAmount.sub(amountToSend))
     })
-    it('uses the previous L2 wallet address if called for a second time')
-    it('accepts calls from a wallet that has funds staked in the protocol')
+    it('uses the previous L2 wallet address if called for a second time', async function () {
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      const amountToSend = toGRT('1000')
+
+      const expectedWalletData = defaultAbiCoder.encode(
+        ['tuple(address,address,address,uint256,uint256,uint256)'],
+        [
+          [
+            tokenLock.address,
+            initArgs.owner,
+            initArgs.beneficiary,
+            initArgs.managedAmount,
+            initArgs.startTime,
+            initArgs.endTime,
+          ],
+        ],
+      )
+      const expectedL2Address = await migrator.getDeploymentAddress(
+        keccak256(expectedWalletData),
+        l2LockImplementationMock.address,
+        l2ManagerMock.address,
+      )
+
+      const expectedOutboundCalldata = await gateway.getOutboundCalldata(
+        grt.address,
+        migrator.address,
+        l2ManagerMock.address,
+        amountToSend,
+        expectedWalletData,
+      )
+    
+      // Good hacker pays for the gas
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.mul(2) })
+      await lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+      // Call again
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx)
+        .emit(migrator, 'LockedFundsSentToL2')
+        .withArgs(
+          lockAsMigrator.address,
+          expectedL2Address,
+          tokenLockManager.address,
+          l2ManagerMock.address,
+          amountToSend,
+        )
+      // Check the events emitted from the mock gateway
+      await expect(tx)
+        .emit(gateway, 'FakeTxToL2')
+        .withArgs(
+          migrator.address,
+          ticketValue,
+          maxGas,
+          gasPrice,
+          maxSubmissionCost,
+          expectedOutboundCalldata
+        )
+      // and check that the right amount of funds have been pulled from the token lock
+      expect(await grt.balanceOf(tokenLock.address)).to.equal(initArgs.managedAmount.sub(amountToSend.mul(2)))
+    })
+    it('accepts calls from a wallet that has funds staked in the protocol', async function () {
+      // Use the tokenLock contract as if it were the Staking contract
+      const lockAsStaking = Staking__factory.connect(tokenLock.address, deployer.signer)
+      const stakeAmount = toGRT('1000')
+      // Stake some funds
+      await lockAsStaking.connect(beneficiary.signer).stake(stakeAmount)
+
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      const amountToSend = toGRT('1000')
+
+      const expectedWalletData = defaultAbiCoder.encode(
+        ['tuple(address,address,address,uint256,uint256,uint256)'],
+        [
+          [
+            tokenLock.address,
+            initArgs.owner,
+            initArgs.beneficiary,
+            initArgs.managedAmount,
+            initArgs.startTime,
+            initArgs.endTime,
+          ],
+        ],
+      )
+      const expectedL2Address = await migrator.getDeploymentAddress(
+        keccak256(expectedWalletData),
+        l2LockImplementationMock.address,
+        l2ManagerMock.address,
+      )
+
+      const expectedOutboundCalldata = await gateway.getOutboundCalldata(
+        grt.address,
+        migrator.address,
+        l2ManagerMock.address,
+        amountToSend,
+        expectedWalletData,
+      )
+    
+      // Good hacker pays for the gas
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx)
+        .emit(migrator, 'LockedFundsSentToL2')
+        .withArgs(
+          lockAsMigrator.address,
+          expectedL2Address,
+          tokenLockManager.address,
+          l2ManagerMock.address,
+          amountToSend,
+        )
+      // Check the events emitted from the mock gateway
+      await expect(tx)
+        .emit(gateway, 'FakeTxToL2')
+        .withArgs(
+          migrator.address,
+          ticketValue,
+          maxGas,
+          gasPrice,
+          maxSubmissionCost,
+          expectedOutboundCalldata
+        )
+      // and check that the right amount of funds have been pulled from the token lock
+      expect(await grt.balanceOf(tokenLock.address)).to.equal(initArgs.managedAmount.sub(amountToSend).sub(stakeAmount))
+    })
   })
 })

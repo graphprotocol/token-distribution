@@ -41,6 +41,8 @@ contract StakingMock {
         token = _token;
     }
 
+    receive() external payable {}
+
     /**
      * @dev Deposit tokens on the indexer stake.
      * @param _tokens Amount of tokens to stake
