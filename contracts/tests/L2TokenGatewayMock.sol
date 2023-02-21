@@ -11,15 +11,12 @@ import { ITokenGateway } from "../arbitrum//ITokenGateway.sol";
  * @dev Used for testing purposes, DO NOT USE IN PRODUCTION
  */
 contract L2TokenGatewayMock is Ownable {
-
     address public immutable l1Token;
     address public immutable l2Token;
     uint256 public nextId;
 
-    event FakeTxToL1(
-        address from,
-        bytes outboundCalldata
-    );
+    event FakeTxToL1(address from, bytes outboundCalldata);
+
     // Emitted when an outbound transfer is initiated, i.e. tokens are withdrawn to L1 from L2
     event WithdrawalInitiated(
         address l1Token,

@@ -20,7 +20,11 @@ contract MinimalProxyFactory is OZOwnable {
      * @param _deployer Address of the deployer
      * @return Address of the counterfactual MinimalProxy
      */
-    function getDeploymentAddress(bytes32 _salt, address _implementation, address _deployer) public pure returns (address) {
+    function getDeploymentAddress(
+        bytes32 _salt,
+        address _implementation,
+        address _deployer
+    ) public pure returns (address) {
         return Create2.computeAddress(_salt, keccak256(_getContractCreationCode(_implementation)), _deployer);
     }
 

@@ -34,8 +34,8 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
         uint256 endTime;
     }
 
-    address immutable public l2Gateway;
-    address immutable public l1Migrator;
+    address public immutable l2Gateway;
+    address public immutable l1Migrator;
     /// L1 address => L2 address
     mapping(address => address) public l1WalletToL2Wallet;
     /// L2 address => L1 address
@@ -82,7 +82,7 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
         bytes calldata _data
     ) external override onlyL2Gateway {
         require(_from == l1Migrator, "ONLY_MIGRATOR");
-        (MigratedWalletData memory walletData) = abi.decode(_data, (MigratedWalletData));
+        MigratedWalletData memory walletData = abi.decode(_data, (MigratedWalletData));
 
         if (l1WalletToL2Wallet[walletData.l1Address] != address(0)) {
             // If the wallet was already migrated, just send the tokens to the L2 address
@@ -116,11 +116,12 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
     }
 
     function _encodeInitializer(MigratedWalletData memory _walletData) internal view returns (bytes memory) {
-        return abi.encodeWithSignature(
-            "initializeFromL1(address,address,(address,address,address,uint256,uint256,uint256)))",
-            address(this),
-            address(_token),
-            _walletData
-        );
+        return
+            abi.encodeWithSignature(
+                "initializeFromL1(address,address,(address,address,address,uint256,uint256,uint256)))",
+                address(this),
+                address(_token),
+                _walletData
+            );
     }
 }

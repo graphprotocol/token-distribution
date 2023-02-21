@@ -53,5 +53,4 @@ contract L2GraphTokenLockWallet is GraphTokenLockWallet {
 
         _setManager(_manager);
     }
-
 }

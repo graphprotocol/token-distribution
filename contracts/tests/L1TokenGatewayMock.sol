@@ -4,6 +4,7 @@ pragma solidity ^0.7.3;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
 import { ITokenGateway } from "../arbitrum//ITokenGateway.sol";
 
 /**
@@ -11,6 +12,7 @@ import { ITokenGateway } from "../arbitrum//ITokenGateway.sol";
  * @dev Used for testing purposes, DO NOT USE IN PRODUCTION
  */
 contract L1TokenGatewayMock is Ownable {
+    using SafeMath for uint256;
     uint256 public nextSeqNum;
 
     event FakeTxToL2(
@@ -21,6 +23,7 @@ contract L1TokenGatewayMock is Ownable {
         uint256 maxSubmissionCost,
         bytes outboundCalldata
     );
+
     // Emitted when an outbound transfer is initiated, i.e. tokens are deposited from L1 to L2
     event DepositInitiated(
         address l1Token,
@@ -74,7 +77,7 @@ contract L1TokenGatewayMock is Ownable {
                     // makes sure only sufficient ETH is supplied as required for successful redemption on L2
                     // if a user does not desire immediate redemption they should provide
                     // a msg.value of AT LEAST maxSubmissionCost
-                    uint256 expectedEth = maxSubmissionCost + (_maxGas * _gasPriceBid);
+                    uint256 expectedEth = maxSubmissionCost.add(_maxGas.mul(_gasPriceBid));
                     require(msg.value >= expectedEth, "WRONG_ETH_VALUE");
                 }
                 outboundCalldata = getOutboundCalldata(_l1Token, from, _to, _amount, extraData);
@@ -131,10 +134,9 @@ contract L1TokenGatewayMock is Ownable {
         uint256 maxSubmissionCost;
         bytes memory extraData;
         from = msg.sender;
-        extraData = _data;
         // User-encoded data contains the max retryable ticket submission cost
         // and additional L2 calldata
-        (maxSubmissionCost, extraData) = abi.decode(extraData, (uint256, bytes));
+        (maxSubmissionCost, extraData) = abi.decode(_data, (uint256, bytes));
         return (from, maxSubmissionCost, extraData);
     }
 

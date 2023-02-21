@@ -17,25 +17,20 @@ import { ITokenGateway } from "./arbitrum/ITokenGateway.sol";
 contract L2GraphTokenLockMigrator {
     using SafeERC20 for IERC20;
 
-    IERC20 immutable public graphToken;
-    ITokenGateway immutable public l2Gateway;
-  
+    IERC20 public immutable graphToken;
+    ITokenGateway public immutable l2Gateway;
+
     /**
      * Constructor.
      * @param _graphToken Token to use for deposits and withdrawals
      * @param _l2Gateway L2GraphTokenGateway
      */
-    constructor(
-        IERC20 _graphToken,
-        ITokenGateway _l2Gateway
-    ) {
+    constructor(IERC20 _graphToken, ITokenGateway _l2Gateway) {
         graphToken = _graphToken;
         l2Gateway = _l2Gateway;
     }
 
-    function withdrawToL1Locked(
-        uint256 _amount
-    ) external returns (bytes memory) {
+    function withdrawToL1Locked(uint256 _amount) external returns (bytes memory) {
         L2GraphTokenLockWallet wallet = L2GraphTokenLockWallet(msg.sender);
         L2GraphTokenLockManager manager = L2GraphTokenLockManager(address(wallet.manager()));
         require(address(manager) != address(0), "INVALID_SENDER");
@@ -44,16 +39,9 @@ contract L2GraphTokenLockMigrator {
         require(_amount <= graphToken.balanceOf(msg.sender), "INSUFFICIENT_BALANCE");
         require(_amount != 0, "ZERO_AMOUNT");
 
-        graphToken.transferFrom(msg.sender, address(this), _amount);    
+        graphToken.transferFrom(msg.sender, address(this), _amount);
         // Send the tokens with a message through the L1GraphTokenGateway to the L2GraphTokenLockManager
         graphToken.approve(address(l2Gateway), _amount);
-        return l2Gateway.outboundTransfer(
-            address(graphToken),
-            l1Wallet,
-            _amount,
-            0,
-            0,
-            "0x"
-        );
+        return l2Gateway.outboundTransfer(address(graphToken), l1Wallet, _amount, 0, 0, "0x");
     }
 }
