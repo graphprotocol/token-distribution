@@ -35,6 +35,9 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   const { deploy } = deployments
   const [deployer] = await getAccounts()
 
+  // Start from a fresh snapshot
+  await deployments.fixture([])
+
   // Deploy token
   await deploy('GraphTokenMock', {
     from: deployer.address,

@@ -3,8 +3,7 @@
 pragma solidity ^0.7.3;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
 import { L2GraphTokenLockWallet } from "./L2GraphTokenLockWallet.sol";
@@ -15,7 +14,6 @@ import { ITokenGateway } from "./arbitrum/ITokenGateway.sol";
  * @title L2GraphTokenLockMigrator
  */
 contract L2GraphTokenLockMigrator {
-    using SafeERC20 for IERC20;
 
     IERC20 public immutable graphToken;
     ITokenGateway public immutable l2Gateway;
