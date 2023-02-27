@@ -118,7 +118,7 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
     function _encodeInitializer(MigratedWalletData memory _walletData) internal view returns (bytes memory) {
         return
             abi.encodeWithSignature(
-                "initializeFromL1(address,address,(address,address,address,uint256,uint256,uint256)))",
+                "initializeFromL1(address,address,(address,address,address,uint256,uint256,uint256))",
                 address(this),
                 address(_token),
                 _walletData

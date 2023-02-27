@@ -22,26 +22,11 @@ import {
   getContract,
   toGRT,
   Account,
-  randomHexBytes,
-  advanceBlocks,
   toBN,
 } from './network'
 import { defaultAbiCoder, hexValue, keccak256, parseEther } from 'ethers/lib/utils'
 
-const { AddressZero, MaxUint256 } = constants
-
-// -- Time utils --
-
-const advancePeriods = async (tokenLock: GraphTokenLockWallet, n = 1) => {
-  const periodDuration = await tokenLock.periodDuration()
-  return advanceTimeAndBlock(periodDuration.mul(n).toNumber()) // advance N period
-}
-const advanceToStart = async (tokenLock: GraphTokenLockWallet) => moveToTime(tokenLock, await tokenLock.startTime(), 60)
-const moveToTime = async (tokenLock: GraphTokenLockWallet, target: BigNumber, buffer: number) => {
-  const ts = await tokenLock.currentTime()
-  const delta = target.sub(ts).add(buffer)
-  return advanceTimeAndBlock(delta.toNumber())
-}
+const { AddressZero } = constants
 
 async function impersonateAccount(address: string): Promise<Signer> {
   await ethers.provider.send('hardhat_impersonateAccount', [address])
@@ -139,22 +124,6 @@ describe('L1GraphTokenLockMigrator', () => {
   let lockAsMigrator: L1GraphTokenLockMigrator
 
   let initArgs: TokenLockParameters
-
-  async function getState(tokenLock) {
-    const beneficiaryAddress = await tokenLock.beneficiary()
-    const ownerAddress = await tokenLock.owner()
-    return {
-      beneficiaryBalance: await grt.balanceOf(beneficiaryAddress),
-      contractBalance: await grt.balanceOf(tokenLock.address),
-      ownerBalance: await grt.balanceOf(ownerAddress),
-      releasableAmount: await tokenLock.releasableAmount(),
-      releasedAmount: await tokenLock.releasedAmount(),
-      revokedAmount: await tokenLock.revokedAmount(),
-      surplusAmount: await tokenLock.surplusAmount(),
-      managedAmount: await tokenLock.managedAmount(),
-      usedAmount: await tokenLock.usedAmount(),
-    }
-  }
 
   const initWithArgs = async (args: TokenLockParameters): Promise<GraphTokenLockWallet> => {
     const tx = await tokenLockManager.createTokenLockWallet(
