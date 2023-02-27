@@ -36,7 +36,7 @@ async function impersonateAccount(address: string): Promise<Signer> {
 // Fixture
 const setupTest = deployments.createFixture(async ({ deployments }) => {
   const { deploy } = deployments
-  const [deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock] = await getAccounts()
+  const [deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock, l2Owner] = await getAccounts()
 
   // Start from a fresh snapshot
   await deployments.fixture([])
@@ -114,6 +114,7 @@ describe('L1GraphTokenLockMigrator', () => {
   let hacker: Account
   let l2ManagerMock: Account
   let l2LockImplementationMock: Account
+  let l2Owner: Account
 
   let grt: GraphTokenMock
   let tokenLock: GraphTokenLockWallet
@@ -143,7 +144,7 @@ describe('L1GraphTokenLockMigrator', () => {
   }
 
   before(async function () {
-    ;[deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock] = await getAccounts()
+    ;[deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock, l2Owner] = await getAccounts()
   })
 
   beforeEach(async () => {
@@ -165,6 +166,7 @@ describe('L1GraphTokenLockMigrator', () => {
     // Approve contracts to pull tokens from the token lock
     await tokenLock.connect(beneficiary.signer).approveProtocol()
     await migrator.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
+    await migrator.setL2WalletOwner(deployer.address, l2Owner.address)
   })
 
   describe('Registering L2 managers', function () {
@@ -175,6 +177,16 @@ describe('L1GraphTokenLockMigrator', () => {
     it('sets the L2 manager for an L1 manager', async function () {
       await migrator.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
       expect(await migrator.l2LockManager(tokenLockManager.address)).to.eq(l2ManagerMock.address)
+    })
+  })
+  describe('Registering L2 wallet owners', function () {
+    it('rejects calls from non-owners', async function () {
+      const tx = migrator.connect(beneficiary.signer).setL2WalletOwner(beneficiary.address, hacker.address)
+      await expect(tx).revertedWith('Ownable: caller is not the owner')
+    })
+    it('sets the L2 wallet owner for an L1 wallet owner', async function () {
+      await migrator.setL2WalletOwner(hacker.address, l2Owner.address)
+      expect(await migrator.l2WalletOwner(hacker.address)).to.eq(l2Owner.address)
     })
   })
   describe('Depositing, withdrawing and pulling ETH', function () {
@@ -225,6 +237,22 @@ describe('L1GraphTokenLockMigrator', () => {
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('10000000'), maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INVALID_MANAGER')
+    })
+    it('rejects calls if the L2 owner for the wallet is not set', async function () {
+      
+      const amountToSend = toGRT('1000')
+      // "hacker" will be the owner here, and it does not have an L2 owner set
+      initArgs = defaultInitArgs(hacker, beneficiary, grt, toGRT('2000000'))
+      tokenLock = await initWithArgs(initArgs)
+      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+
+      // Good hacker pays for the gas
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx).revertedWith('L2_OWNER_NOT_SET')
     })
 
     it('rejects calls from wallets that have the wrong token address', async function () {
@@ -314,7 +342,7 @@ describe('L1GraphTokenLockMigrator', () => {
         [
           [
             tokenLock.address,
-            initArgs.owner,
+            l2Owner.address,
             initArgs.beneficiary,
             initArgs.managedAmount,
             initArgs.startTime,
@@ -373,7 +401,7 @@ describe('L1GraphTokenLockMigrator', () => {
         [
           [
             tokenLock.address,
-            initArgs.owner,
+            l2Owner.address,
             initArgs.beneficiary,
             initArgs.managedAmount,
             initArgs.startTime,
@@ -442,7 +470,7 @@ describe('L1GraphTokenLockMigrator', () => {
         [
           [
             tokenLock.address,
-            initArgs.owner,
+            l2Owner.address,
             initArgs.beneficiary,
             initArgs.managedAmount,
             initArgs.startTime,

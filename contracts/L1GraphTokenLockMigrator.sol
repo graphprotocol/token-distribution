@@ -21,11 +21,16 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
     address payable public immutable staking;
     /// L1 GraphTokenLockManager => L2GraphTokenLockManager
     mapping(address => address) public l2LockManager;
+    /// L1 wallet owner => L2 wallet owner
+    mapping(address => address) public l2WalletOwner;
+    /// L1 wallet => L2 wallet
     mapping(address => address) public migratedWalletAddress;
-    /// ETH balance from each token lock, used to pay for L2 gas
+    /// ETH balance from each token lock, used to pay for L2 gas:
+    /// L1 wallet address => ETH balance
     mapping(address => uint256) public tokenLockETHBalances;
 
     event L2LockManagerSet(address indexed l1LockManager, address indexed l2LockManager);
+    event L2WalletOwnerSet(address indexed l1WalletOwner, address indexed l2WalletOwner);
     event LockedFundsSentToL2(
         address indexed l1Wallet,
         address indexed l2Wallet,
@@ -52,6 +57,11 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
     function setL2LockManager(address _l1LockManager, address _l2LockManager) external onlyOwner {
         l2LockManager[_l1LockManager] = _l2LockManager;
         emit L2LockManagerSet(_l1LockManager, _l2LockManager);
+    }
+
+    function setL2WalletOwner(address _l1WalletOwner, address _l2WalletOwner) external onlyOwner {
+        l2WalletOwner[_l1WalletOwner] = _l2WalletOwner;
+        emit L2WalletOwnerSet(_l1WalletOwner, _l2WalletOwner);
     }
 
     function depositETH(address _tokenLock) external payable {
@@ -100,17 +110,22 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         uint256 expectedEth = _maxSubmissionCost.add(_maxGas.mul(_gasPriceBid));
         require(tokenLockETHBalances[msg.sender] >= expectedEth, "INSUFFICIENT_ETH_BALANCE");
         tokenLockETHBalances[msg.sender] -= expectedEth;
-        // Extract all the storage variables from the GraphTokenLockWallet
-        L2GraphTokenLockManager.MigratedWalletData memory data = L2GraphTokenLockManager.MigratedWalletData({
-            l1Address: msg.sender,
-            owner: wallet.owner(),
-            beneficiary: wallet.beneficiary(),
-            managedAmount: wallet.managedAmount(),
-            startTime: wallet.startTime(),
-            endTime: wallet.endTime()
-        });
-        // Build the encoded message for L2
-        bytes memory encodedData = abi.encode(data);
+
+        bytes memory encodedData;
+        {
+            address l2Owner = l2WalletOwner[wallet.owner()];
+            require(l2Owner != address(0), "L2_OWNER_NOT_SET");
+            // Extract all the storage variables from the GraphTokenLockWallet
+            L2GraphTokenLockManager.MigratedWalletData memory data = L2GraphTokenLockManager.MigratedWalletData({
+                l1Address: msg.sender,
+                owner: l2Owner,
+                beneficiary: wallet.beneficiary(),
+                managedAmount: wallet.managedAmount(),
+                startTime: wallet.startTime(),
+                endTime: wallet.endTime()
+            });
+            encodedData = abi.encode(data);
+        }
 
         if (migratedWalletAddress[msg.sender] == address(0)) {
             migratedWalletAddress[msg.sender] = getDeploymentAddress(
@@ -124,15 +139,17 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
 
         // Send the tokens with a message through the L1GraphTokenGateway to the L2GraphTokenLockManager
         graphToken.approve(address(l1Gateway), _amount);
-        bytes memory transferData = abi.encode(_maxSubmissionCost, encodedData);
-        l1Gateway.outboundTransfer{ value: expectedEth }(
-            address(graphToken),
-            l2Manager,
-            _amount,
-            _maxGas,
-            _gasPriceBid,
-            transferData
-        );
+        {
+            bytes memory transferData = abi.encode(_maxSubmissionCost, encodedData);
+            l1Gateway.outboundTransfer{ value: expectedEth }(
+                address(graphToken),
+                l2Manager,
+                _amount,
+                _maxGas,
+                _gasPriceBid,
+                transferData
+            );
+        }
         emit LockedFundsSentToL2(msg.sender, migratedWalletAddress[msg.sender], l1Manager, l2Manager, _amount);
     }
 }
