@@ -3,8 +3,9 @@
 pragma solidity ^0.7.3;
 
 import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { ERC20Burnable } from "@openzeppelin/contracts/token/ERC20/ERC20Burnable.sol";
 import { ITokenGateway } from "../arbitrum//ITokenGateway.sol";
+import { GraphTokenMock } from "./GraphTokenMock.sol";
+import { ICallhookReceiver } from "../ICallhookReceiver.sol";
 
 /**
  * @title L2 Token Gateway mock contract
@@ -16,6 +17,7 @@ contract L2TokenGatewayMock is Ownable {
     uint256 public nextId;
 
     event FakeTxToL1(address from, bytes outboundCalldata);
+    event DepositFinalized(address token, address indexed from, address indexed to, uint256 amount);
 
     // Emitted when an outbound transfer is initiated, i.e. tokens are withdrawn to L1 from L2
     event WithdrawalInitiated(
@@ -72,7 +74,7 @@ contract L2TokenGatewayMock is Ownable {
             }
             {
                 // burn tokens from the sender, they will be released from escrow in L1
-                ERC20Burnable(l2Token).burnFrom(from, _amount);
+                GraphTokenMock(l2Token).bridgeBurn(from, _amount);
 
                 emit FakeTxToL1(from, outboundCalldata);
             }
@@ -84,8 +86,7 @@ contract L2TokenGatewayMock is Ownable {
 
     /**
      * @notice (Mock) Receives withdrawn tokens from L1
-     * Actually does nothing, just keeping it here as its useful to define the expected
-     * calldata for the outgoing transfer in tests.
+     * Implements calling callhooks if data is non-empty.
      * @param _l1Token L1 Address of the GRT contract (needed for compatibility with Arbitrum Gateway Router)
      * @param _from Address of the sender
      * @param _to Recepient address on L1
@@ -98,7 +99,18 @@ contract L2TokenGatewayMock is Ownable {
         address _to,
         uint256 _amount,
         bytes calldata _data
-    ) external payable {}
+    ) external payable {
+        require(_l1Token == l1Token, "TOKEN_NOT_GRT");
+        require(msg.value == 0, "INVALID_NONZERO_VALUE");
+
+        GraphTokenMock(l2Token).bridgeMint(_to, _amount);
+
+        if (_data.length > 0) {
+            ICallhookReceiver(_to).onTokenTransfer(_from, _amount, _data);
+        }
+
+        emit DepositFinalized(_l1Token, _from, _to, _amount);
+    }
 
     /**
      * @notice Decodes calldata required for migration of tokens

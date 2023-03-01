@@ -80,13 +80,6 @@ async function authProtocolFunctions(
   await tokenLockManager.setAuthFunctionCall('withdraw()', stakingAddress)
 }
 
-// -- Tests --
-
-const maxSubmissionCost = toBN('10000')
-const maxGas = toBN('1000000')
-const gasPrice = toBN('10')
-const ticketValue = maxSubmissionCost.add(maxGas.mul(gasPrice))
-
 describe('L2GraphTokenLockManager', () => {
   let deployer: Account
   let beneficiary: Account

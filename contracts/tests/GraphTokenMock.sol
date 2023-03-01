@@ -17,4 +17,24 @@ contract GraphTokenMock is Ownable, ERC20 {
         // Deploy to mint address
         _mint(_mintTo, _initialSupply);
     }
+
+    /**
+     * @notice Mint tokens to an address from the bridge.
+     * (The real one has an onlyGateway modifier)
+     * @param _to Address to mint tokens to
+     * @param _amount Amount of tokens to mint
+     */
+    function bridgeMint(address _to, uint256 _amount) external {
+        _mint(_to, _amount);
+    }
+
+    /**
+     * @notice Burn tokens from an address from the bridge.
+     * (The real one has an onlyGateway modifier)
+     * @param _from Address to burn tokens from
+     * @param _amount Amount of tokens to burn
+     */
+    function bridgeBurn(address _from, uint256 _amount) external {
+        _burn(_from, _amount);
+    }
 }

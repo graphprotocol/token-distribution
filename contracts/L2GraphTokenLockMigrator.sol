@@ -17,15 +17,17 @@ contract L2GraphTokenLockMigrator {
 
     IERC20 public immutable graphToken;
     ITokenGateway public immutable l2Gateway;
+    address public immutable l1GraphToken;
 
     /**
      * Constructor.
      * @param _graphToken Token to use for deposits and withdrawals
      * @param _l2Gateway L2GraphTokenGateway
      */
-    constructor(IERC20 _graphToken, ITokenGateway _l2Gateway) {
+    constructor(IERC20 _graphToken, ITokenGateway _l2Gateway, address _l1GraphToken) {
         graphToken = _graphToken;
         l2Gateway = _l2Gateway;
+        l1GraphToken = _l1GraphToken;
     }
 
     function withdrawToL1Locked(uint256 _amount) external returns (bytes memory) {
@@ -40,6 +42,6 @@ contract L2GraphTokenLockMigrator {
         graphToken.transferFrom(msg.sender, address(this), _amount);
         // Send the tokens with a message through the L1GraphTokenGateway to the L2GraphTokenLockManager
         graphToken.approve(address(l2Gateway), _amount);
-        return l2Gateway.outboundTransfer(address(graphToken), l1Wallet, _amount, 0, 0, "0x");
+        return l2Gateway.outboundTransfer(l1GraphToken, l1Wallet, _amount, 0, 0, "");
     }
 }
