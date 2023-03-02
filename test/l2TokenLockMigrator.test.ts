@@ -180,6 +180,9 @@ describe('L2GraphTokenLockMigrator', () => {
         toBN('0'), // sequence number
         amountToSend,
       )
+      await expect(tx)
+        .emit(tokenLockMigrator, 'LockedFundsSentToL1')
+        .withArgs(l1TokenLock.address, tokenLock.address, tokenLockManager.address, amountToSend)
     })
     it('rejects calls from a lock that was not migrated from L1', async function () {
       tokenLock = await initWithArgs(defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000')))

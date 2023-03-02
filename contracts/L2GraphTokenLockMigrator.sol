@@ -23,6 +23,14 @@ contract L2GraphTokenLockMigrator {
     /// Address of the L1 GRT token (in L1, no aliasing)
     address public immutable l1GraphToken;
 
+    /// @dev Emitted when GRT is sent to L1 from a token lock
+    event LockedFundsSentToL1(
+        address indexed l1Wallet,
+        address indexed l2Wallet,
+        address indexed l2LockManager,
+        uint256 amount
+    );
+
     /**
      * @notice Constructor for the L2GraphTokenLockMigrator contract
      * @param _graphToken Address of the L2 GRT token
@@ -59,6 +67,9 @@ contract L2GraphTokenLockMigrator {
         graphToken.transferFrom(msg.sender, address(this), _amount);
         // Send the tokens with a message through the L1GraphTokenGateway to the L2GraphTokenLockManager
         graphToken.approve(address(l2Gateway), _amount);
+
+        emit LockedFundsSentToL1(l1Wallet, msg.sender, address(manager), _amount);
+
         return l2Gateway.outboundTransfer(l1GraphToken, l1Wallet, _amount, 0, 0, "");
     }
 }
