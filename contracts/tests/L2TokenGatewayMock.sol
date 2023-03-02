@@ -12,14 +12,19 @@ import { ICallhookReceiver } from "../ICallhookReceiver.sol";
  * @dev Used for testing purposes, DO NOT USE IN PRODUCTION
  */
 contract L2TokenGatewayMock is Ownable {
+    /// Address of the L1 GRT contract
     address public immutable l1Token;
+    /// Address of the L2 GRT contract
     address public immutable l2Token;
+    /// Next ID to return when sending an outboundTransfer
     uint256 public nextId;
 
+    /// @dev Emitted when a (fake) transaction to L1 is created
     event FakeTxToL1(address from, bytes outboundCalldata);
+    /// @dev Emitted when a (fake) retryable ticket is received from L1
     event DepositFinalized(address token, address indexed from, address indexed to, uint256 amount);
 
-    // Emitted when an outbound transfer is initiated, i.e. tokens are withdrawn to L1 from L2
+    /// @dev Emitted when an outbound transfer is initiated, i.e. tokens are withdrawn to L1 from L2
     event WithdrawalInitiated(
         address l1Token,
         address indexed from,
@@ -29,7 +34,9 @@ contract L2TokenGatewayMock is Ownable {
     );
 
     /**
-     * @dev L2 Token Gateway Contract Constructor.
+     * @notice L2 Token Gateway Contract Constructor.
+     * @param _l1Token Address of the L1 GRT contract
+     * @param _l2Token Address of the L2 GRT contract
      */
     constructor(address _l1Token, address _l2Token) {
         l1Token = _l1Token;
@@ -37,14 +44,14 @@ contract L2TokenGatewayMock is Ownable {
     }
 
     /**
-     * @notice Creates and sends a fake transfer of GRT to L1.
+     * @notice Creates and sends a (fake) transfer of GRT to L1.
      * This mock will actually just emit an event with parameters equivalent to what the real L2GraphTokenGateway
      * would send to L1.
      * @param _l1Token L1 Address of the GRT contract (needed for compatibility with Arbitrum Gateway Router)
      * @param _to Recipient address on L2
      * @param _amount Amount of tokens to tranfer
      * @param _data Encoded maxSubmissionCost and sender address along with additional calldata
-     * @return Sequence number of the retryable ticket created by Inbox (always )
+     * @return ID of the L2-L1 message (incrementing on every call)
      */
     function outboundTransfer(
         address _l1Token,
@@ -89,9 +96,9 @@ contract L2TokenGatewayMock is Ownable {
      * Implements calling callhooks if data is non-empty.
      * @param _l1Token L1 Address of the GRT contract (needed for compatibility with Arbitrum Gateway Router)
      * @param _from Address of the sender
-     * @param _to Recepient address on L1
+     * @param _to Recipient address on L1
      * @param _amount Amount of tokens transferred
-     * @param _data Additional calldata
+     * @param _data Additional calldata, will trigger an onTokenTransfer call if non-empty
      */
     function finalizeInboundTransfer(
         address _l1Token,
@@ -113,19 +120,16 @@ contract L2TokenGatewayMock is Ownable {
     }
 
     /**
-     * @notice Decodes calldata required for migration of tokens
-     * @dev extraData can be left empty
-     * @param _data Encoded callhook data
-     * @return Sender of the tx
-     * @return Any other data sent to L1
+     * @notice Calculate the L2 address of a bridged token
+     * @dev In our case, this would only work for GRT.
+     * @param l1ERC20 address of L1 GRT contract
+     * @return L2 address of the bridged GRT token
      */
-    function _parseOutboundData(bytes calldata _data) private view returns (address, bytes memory) {
-        address from;
-        bytes memory extraData;
-        // The mock doesn't take messages from the Router
-        from = msg.sender;
-        extraData = _data;
-        return (from, extraData);
+    function calculateL2TokenAddress(address l1ERC20) public view returns (address) {
+        if (l1ERC20 != l1Token) {
+            return address(0);
+        }
+        return l2Token;
     }
 
     /**
@@ -156,15 +160,18 @@ contract L2TokenGatewayMock is Ownable {
     }
 
     /**
-     * @notice Calculate the L2 address of a bridged token
-     * @dev In our case, this would only work for GRT.
-     * @param l1ERC20 address of L1 GRT contract
-     * @return L2 address of the bridged GRT token
+     * @dev Decodes calldata required for migration of tokens.
+     * extraData can be left empty
+     * @param _data Encoded callhook data
+     * @return Sender of the tx
+     * @return Any other data sent to L1
      */
-    function calculateL2TokenAddress(address l1ERC20) public view returns (address) {
-        if (l1ERC20 != l1Token) {
-            return address(0);
-        }
-        return l2Token;
+    function _parseOutboundData(bytes calldata _data) private view returns (address, bytes memory) {
+        address from;
+        bytes memory extraData;
+        // The mock doesn't take messages from the Router
+        from = msg.sender;
+        extraData = _data;
+        return (from, extraData);
     }
 }

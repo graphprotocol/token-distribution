@@ -309,7 +309,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
     function _convertToBytes4(bytes memory _signature) internal pure returns (bytes4) {
         require(_signature.length == 4, "Invalid method signature");
         bytes4 sigHash;
-        // solium-disable-next-line security/no-inline-assembly
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             sigHash := mload(add(_signature, 32))
         }

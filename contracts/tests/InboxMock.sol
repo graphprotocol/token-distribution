@@ -10,18 +10,18 @@ import "./arbitrum/AddressAliasHelper.sol";
  * @dev This contract implements (a subset of) Arbitrum's IInbox interface for testing purposes
  */
 contract InboxMock is IInbox {
-    // Type indicator for a standard L2 message
+    /// @dev Type indicator for a standard L2 message
     uint8 internal constant L2_MSG = 3;
-    // Type indicator for a retryable ticket message
+    /// @dev Type indicator for a retryable ticket message
     // solhint-disable-next-line const-name-snakecase
     uint8 internal constant L1MessageType_submitRetryableTx = 9;
-    // Address of the Bridge (mock) contract
+    /// Address of the Bridge (mock) contract
     IBridge public override bridge;
 
     /**
-     * @dev Send a message to L2 (by delivering it to the Bridge)
+     * @notice Send a message to L2 (by delivering it to the Bridge)
      * @param _messageData Encoded data to send in the message
-     * @return message number returned by the inbox
+     * @return Message number returned by the inbox
      */
     function sendL2Message(bytes calldata _messageData) external override returns (uint256) {
         uint256 msgNum = deliverToBridge(L2_MSG, msg.sender, keccak256(_messageData));
@@ -30,7 +30,7 @@ contract InboxMock is IInbox {
     }
 
     /**
-     * @dev Set the address of the (mock) bridge
+     * @notice Set the address of the (mock) bridge
      * @param _bridge Address of the bridge
      */
     function setBridge(address _bridge) external {
@@ -38,7 +38,7 @@ contract InboxMock is IInbox {
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function sendUnsignedTransaction(
         uint256,
@@ -52,7 +52,7 @@ contract InboxMock is IInbox {
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function sendContractTransaction(
         uint256,
@@ -65,7 +65,7 @@ contract InboxMock is IInbox {
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function sendL1FundedUnsignedTransaction(
         uint256,
@@ -78,7 +78,7 @@ contract InboxMock is IInbox {
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function sendL1FundedContractTransaction(
         uint256,
@@ -90,7 +90,7 @@ contract InboxMock is IInbox {
     }
 
     /**
-     * @dev Creates a retryable ticket for an L2 transaction
+     * @notice Creates a retryable ticket for an L2 transaction
      * @param _destAddr Address of the contract to call in L2
      * @param _arbTxCallValue Callvalue to use in the L2 transaction
      * @param _maxSubmissionCost Max cost of submitting the ticket, in Wei
@@ -99,7 +99,7 @@ contract InboxMock is IInbox {
      * @param _maxGas Max gas for the L2 transcation
      * @param _gasPriceBid Gas price bid on L2
      * @param _data Encoded calldata for the L2 transaction (including function selector)
-     * @return message number returned by the bridge
+     * @return Message number returned by the bridge
      */
     function createRetryableTicket(
         address _destAddr,
@@ -132,33 +132,36 @@ contract InboxMock is IInbox {
             );
     }
 
+    /**
+     * @notice Unimplemented in this mock
+     */
     function depositEth(uint256) external payable override returns (uint256) {
         revert("Unimplemented");
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function pauseCreateRetryables() external pure override {
         revert("Unimplemented");
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function unpauseCreateRetryables() external pure override {
         revert("Unimplemented");
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function startRewriteAddress() external pure override {
         revert("Unimplemented");
     }
 
     /**
-     * @dev Unimplemented in this mock
+     * @notice Unimplemented in this mock
      */
     function stopRewriteAddress() external pure override {
         revert("Unimplemented");

@@ -2,22 +2,24 @@
 
 pragma solidity ^0.7.3;
 
-import "@openzeppelin/contracts/utils/Address.sol";
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { Ownable as OZOwnable } from "@openzeppelin/contracts/access/Ownable.sol";
-import "@openzeppelin/contracts/utils/Create2.sol";
+import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
 
-// Adapted from https://github.com/OpenZeppelin/openzeppelin-sdk/blob/v2.5.0/packages/lib/contracts/upgradeability/ProxyFactory.sol
-// Based on https://eips.ethereum.org/EIPS/eip-1167
+/**
+ * @title MinimalProxyFactory: a factory contract for creating minimal proxies
+ * @notice Adapted from https://github.com/OpenZeppelin/openzeppelin-sdk/blob/v2.5.0/packages/lib/contracts/upgradeability/ProxyFactory.sol
+ * Based on https://eips.ethereum.org/EIPS/eip-1167
+ */
 contract MinimalProxyFactory is OZOwnable {
-    // -- Events --
-
+    /// @dev Emitted when a new proxy is created
     event ProxyCreated(address indexed proxy);
 
     /**
      * @notice Gets the deterministic CREATE2 address for MinimalProxy with a particular implementation
      * @param _salt Bytes32 salt to use for CREATE2
      * @param _implementation Address of the proxy target implementation
-     * @param _deployer Address of the deployer
+     * @param _deployer Address of the deployer that creates the contract
      * @return Address of the counterfactual MinimalProxy
      */
     function getDeploymentAddress(
@@ -29,7 +31,7 @@ contract MinimalProxyFactory is OZOwnable {
     }
 
     /**
-     * @notice Deploys a MinimalProxy with CREATE2
+     * @dev Deploys a MinimalProxy with CREATE2
      * @param _salt Bytes32 salt to use for CREATE2
      * @param _implementation Address of the proxy target implementation
      * @param _data Bytes with the initializer call
@@ -53,7 +55,7 @@ contract MinimalProxyFactory is OZOwnable {
     }
 
     /**
-     * @notice Gets the MinimalProxy bytecode
+     * @dev Gets the MinimalProxy bytecode
      * @param _implementation Address of the proxy target implementation
      * @return MinimalProxy bytecode
      */

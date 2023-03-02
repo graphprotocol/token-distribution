@@ -3,8 +3,8 @@
 pragma solidity ^0.7.3;
 pragma experimental ABIEncoderV2;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import { ICallhookReceiver } from "./ICallhookReceiver.sol";
 import { GraphTokenLockManager } from "./GraphTokenLockManager.sol";
@@ -18,6 +18,11 @@ import { IGraphTokenLock } from "./IGraphTokenLock.sol";
  * This contract receives funds to make the process of creating TokenLockWallet contracts
  * easier by distributing them the initial tokens to be managed.
  *
+ * In particular, this L2 variant is designed to receive migrated token lock wallets from L1,
+ * through the GRT bridge. These migrated wallets will not allow releasing funds in L2 until
+ * the end of the vesting timeline, but they can allow withdrawing funds back to L1 using
+ * the L2GraphTokenLockMigrator contract.
+ *
  * The owner can setup a list of token destinations that will be used by TokenLock contracts to
  * approve the pulling of funds, this way in can be guaranteed that only protocol contracts
  * will manipulate users funds.
@@ -25,6 +30,8 @@ import { IGraphTokenLock } from "./IGraphTokenLock.sol";
 contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
     using SafeERC20 for IERC20;
 
+    /// @dev Struct to hold the data of a migrated wallet; this is
+    /// the data that must be encoded in L1 to send a wallet to L2.
     struct MigratedWalletData {
         address l1Address;
         address owner;
@@ -34,13 +41,18 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
         uint256 endTime;
     }
 
+    /// Address of the L2GraphTokenGateway
     address public immutable l2Gateway;
+    /// Address of the L1 migrator contract (in L1, no aliasing)
     address public immutable l1Migrator;
+    /// Mapping of each L1 wallet to its L2 wallet counterpart (populated when each wallet is migrated)
     /// L1 address => L2 address
     mapping(address => address) public l1WalletToL2Wallet;
+    /// Mapping of each L2 wallet to its L1 wallet counterpart (populated when each wallet is migrated)
     /// L2 address => L1 address
     mapping(address => address) public l2WalletToL1Wallet;
 
+    /// @dev Event emitted when a wallet is received and created from L1
     event TokenLockCreatedFromL1(
         address indexed contractAddress,
         bytes32 initHash,
@@ -51,6 +63,8 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
         address indexed l1Address
     );
 
+    /// @dev Emitted when locked tokens are received from L1 (whether the wallet
+    /// had already been received or not)
     event LockedTokensReceivedFromL1(address indexed l1Address, address indexed l2Address, uint256 amount);
 
     /**
@@ -62,9 +76,11 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
     }
 
     /**
-     * Constructor.
-     * @param _graphToken Token to use for deposits and withdrawals
-     * @param _masterCopy Address of the master copy to use to clone proxies
+     * @notice Constructor for the L2GraphTokenLockManager contract.
+     * @param _graphToken Address of the L2 GRT token contract
+     * @param _masterCopy Address of the master copy of the L2GraphTokenLockWallet implementation
+     * @param _l2Gateway Address of the L2GraphTokenGateway contract
+     * @param _l1Migrator Address of the L1 migrator contract (in L1, without aliasing)
      */
     constructor(
         IERC20 _graphToken,
@@ -76,6 +92,14 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
         l1Migrator = _l1Migrator;
     }
 
+    /**
+     * @notice This function is called by the L2GraphTokenGateway when tokens are sent from L1.
+     * @dev This function will create a new wallet if it doesn't exist yet, or send the tokens to
+     * the existing wallet if it does.
+     * @param _from Address of the sender in L1, which must be the L1GraphTokenLockMigrator
+     * @param _amount Amount of tokens received
+     * @param _data Encoded data of the migrated wallet, which must be an ABI-encoded MigratedWalletData struct
+     */
     function onTokenTransfer(
         address _from,
         uint256 _amount,
@@ -109,12 +133,24 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
         emit LockedTokensReceivedFromL1(walletData.l1Address, l1WalletToL2Wallet[walletData.l1Address], _amount);
     }
 
+    /**
+     * @dev Deploy a token lock wallet with data received from L1
+     * @param _salt Salt for the CREATE2 call, which must be the hash of the wallet data
+     * @param _walletData Data of the wallet to be created
+     * @return Hash of the initialization calldata
+     * @return Address of the created contract
+     */
     function _deployFromL1(bytes32 _salt, MigratedWalletData memory _walletData) internal returns (bytes32, address) {
         bytes memory initializer = _encodeInitializer(_walletData);
         address contractAddress = _deployProxy2(_salt, masterCopy, initializer);
         return (keccak256(initializer), contractAddress);
     }
 
+    /**
+     * @dev Encode the initializer for the token lock wallet received from L1
+     * @param _walletData Data of the wallet to be created
+     * @return Encoded initializer calldata, including the function signature
+     */
     function _encodeInitializer(MigratedWalletData memory _walletData) internal view returns (bytes memory) {
         return
             abi.encodeWithSignature(

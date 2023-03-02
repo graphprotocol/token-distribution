@@ -13,8 +13,10 @@ import { ITokenGateway } from "../arbitrum//ITokenGateway.sol";
  */
 contract L1TokenGatewayMock is Ownable {
     using SafeMath for uint256;
+    /// Next sequence number to return when outboundTransfer is called
     uint256 public nextSeqNum;
 
+    /// @dev Emitted when a (fake) retryable ticket is created
     event FakeTxToL2(
         address from,
         uint256 value,
@@ -24,7 +26,7 @@ contract L1TokenGatewayMock is Ownable {
         bytes outboundCalldata
     );
 
-    // Emitted when an outbound transfer is initiated, i.e. tokens are deposited from L1 to L2
+    /// @dev Emitted when an outbound transfer is initiated, i.e. tokens are deposited from L1 to L2
     event DepositInitiated(
         address l1Token,
         address indexed from,
@@ -34,7 +36,7 @@ contract L1TokenGatewayMock is Ownable {
     );
 
     /**
-     * @dev L1 Token Gateway Contract Constructor.
+     * @notice L1 Token Gateway Contract Constructor.
      */
     constructor() {}
 
@@ -70,7 +72,7 @@ contract L1TokenGatewayMock is Ownable {
             bytes memory outboundCalldata;
             {
                 bytes memory extraData;
-                (from, maxSubmissionCost, extraData) = parseOutboundData(_data);
+                (from, maxSubmissionCost, extraData) = _parseOutboundData(_data);
                 require(maxSubmissionCost > 0, "NO_SUBMISSION_COST");
 
                 {
@@ -113,34 +115,6 @@ contract L1TokenGatewayMock is Ownable {
     ) external payable {}
 
     /**
-     * @notice Decodes calldata required for migration of tokens
-     * @dev Data must include maxSubmissionCost, extraData can be left empty. When the router
-     * sends an outbound message, data also contains the from address.
-     * @param _data encoded callhook data
-     * @return Sender of the tx
-     * @return Base ether value required to keep retryable ticket alive
-     * @return Additional data sent to L2
-     */
-    function parseOutboundData(bytes memory _data)
-        private
-        view
-        returns (
-            address,
-            uint256,
-            bytes memory
-        )
-    {
-        address from;
-        uint256 maxSubmissionCost;
-        bytes memory extraData;
-        from = msg.sender;
-        // User-encoded data contains the max retryable ticket submission cost
-        // and additional L2 calldata
-        (maxSubmissionCost, extraData) = abi.decode(_data, (uint256, bytes));
-        return (from, maxSubmissionCost, extraData);
-    }
-
-    /**
      * @notice Creates calldata required to create a retryable ticket
      * @dev encodes the target function with its params which
      * will be called on L2 when the retryable ticket is redeemed
@@ -169,5 +143,34 @@ contract L1TokenGatewayMock is Ownable {
                 _amount,
                 abi.encode(emptyBytes, _data)
             );
+    }
+
+    /**
+     * @notice Decodes calldata required for migration of tokens
+     * @dev Data must include maxSubmissionCost, extraData can be left empty. When the router
+     * sends an outbound message, data also contains the from address, but this mock
+     * doesn't consider this case
+     * @param _data Encoded callhook data containing maxSubmissionCost and extraData
+     * @return Sender of the tx
+     * @return Max ether value used to submit the retryable ticket
+     * @return Additional data sent to L2
+     */
+    function _parseOutboundData(bytes memory _data)
+        private
+        view
+        returns (
+            address,
+            uint256,
+            bytes memory
+        )
+    {
+        address from;
+        uint256 maxSubmissionCost;
+        bytes memory extraData;
+        from = msg.sender;
+        // User-encoded data contains the max retryable ticket submission cost
+        // and additional L2 calldata
+        (maxSubmissionCost, extraData) = abi.decode(_data, (uint256, bytes));
+        return (from, maxSubmissionCost, extraData);
     }
 }

@@ -22,10 +22,16 @@ import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
  * The function calls allowed are queried to the GraphTokenLockManager, this way
  * the same configuration can be shared for all the created lock wallet contracts.
  *
+ * This L2 variant includes a special initializer so that it can be created from
+ * a wallet's data received from L1. These migrated wallets will not allow releasing
+ * funds in L2 until the end of the vesting timeline, but they can allow withdrawing
+ * funds back to L1 using the L2GraphTokenLockMigrator contract.
+ *
  * NOTE: Contracts used as target must have its function signatures checked to avoid collisions
  * with any of this contract functions.
  * Beneficiaries need to approve the use of the tokens to the protocol contracts. For convenience
  * the maximum amount of tokens is authorized.
+ * Function calls do not forward ETH value so DO NOT SEND ETH TO THIS CONTRACT.
  */
 contract L2GraphTokenLockWallet is GraphTokenLockWallet {
     // Initializer when created from a message from L1

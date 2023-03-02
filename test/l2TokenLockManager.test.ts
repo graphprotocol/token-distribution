@@ -1,4 +1,4 @@
-import { constants, BigNumber, Wallet, Signer } from 'ethers'
+import { constants, Wallet } from 'ethers'
 import { expect } from 'chai'
 import { deployments, ethers } from 'hardhat'
 
@@ -12,26 +12,16 @@ import { StakingMock } from '../build/typechain/contracts/StakingMock'
 import { Staking__factory } from '@graphprotocol/contracts/dist/types/factories/Staking__factory'
 
 import { defaultInitArgs, Revocability, TokenLockParameters } from './config'
-import {
-  advanceTimeAndBlock,
-  getAccounts,
-  getContract,
-  toGRT,
-  Account,
-  randomHexBytes,
-  advanceBlocks,
-  toBN,
-} from './network'
-import { defaultAbiCoder, hexValue, keccak256, parseEther } from 'ethers/lib/utils'
+import { advanceTimeAndBlock, getAccounts, getContract, toGRT, Account } from './network'
+import { defaultAbiCoder, keccak256 } from 'ethers/lib/utils'
 import { Staking } from '@graphprotocol/contracts'
-import { GraphTokenLockManager } from '../build/typechain/contracts/GraphTokenLockManager'
 
 const { AddressZero } = constants
 
 // Fixture
 const setupTest = deployments.createFixture(async ({ deployments }) => {
   const { deploy } = deployments
-  const [deployer, beneficiary, hacker, l1MigratorMock, l1GRTMock, gateway, l1TokenLock] = await getAccounts()
+  const [deployer, , l1MigratorMock, gateway] = await getAccounts()
 
   // Start from a fresh snapshot
   await deployments.fixture([])
@@ -71,10 +61,7 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   }
 })
 
-async function authProtocolFunctions(
-  tokenLockManager: L2GraphTokenLockManager,
-  stakingAddress: string,
-) {
+async function authProtocolFunctions(tokenLockManager: L2GraphTokenLockManager, stakingAddress: string) {
   await tokenLockManager.setAuthFunctionCall('stake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('unstake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('withdraw()', stakingAddress)
@@ -83,9 +70,7 @@ async function authProtocolFunctions(
 describe('L2GraphTokenLockManager', () => {
   let deployer: Account
   let beneficiary: Account
-  let hacker: Account
   let l1MigratorMock: Account
-  let l1GRTMock: Account
   let gateway: Account
   let l1TokenLock: Account
 
@@ -116,7 +101,7 @@ describe('L2GraphTokenLockManager', () => {
   }
 
   before(async function () {
-    ;[deployer, beneficiary, hacker, l1MigratorMock, l1GRTMock, gateway, l1TokenLock] = await getAccounts()
+    ;[deployer, beneficiary, l1MigratorMock, gateway, l1TokenLock] = await getAccounts()
   })
 
   beforeEach(async () => {
@@ -127,8 +112,6 @@ describe('L2GraphTokenLockManager', () => {
 
     // Add the staking contract as token destination
     await tokenLockManager.addTokenDestination(staking.address)
-  
-    
   })
 
   describe('TokenLockManager standard behavior', function () {
@@ -137,7 +120,12 @@ describe('L2GraphTokenLockManager', () => {
 
       const d = deploy('L2GraphTokenLockManager', {
         from: deployer.address,
-        args: [AddressZero, Wallet.createRandom().address, Wallet.createRandom().address, Wallet.createRandom().address],
+        args: [
+          AddressZero,
+          Wallet.createRandom().address,
+          Wallet.createRandom().address,
+          Wallet.createRandom().address,
+        ],
       })
       await expect(d).revertedWith('Token cannot be zero')
     })
@@ -197,7 +185,6 @@ describe('L2GraphTokenLockManager', () => {
       expect(await grt.balanceOf(staking.address)).eq(amount)
       // Check the token lock wallet balance
       expect(await grt.balanceOf(tokenLock.address)).eq(initArgs.managedAmount.sub(amount))
-
     })
   })
   describe('onTokenTransfer', function () {
@@ -206,7 +193,7 @@ describe('L2GraphTokenLockManager', () => {
       initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
       const walletDataType = 'tuple(address,address,address,uint256,uint256,uint256)'
       const data = defaultAbiCoder.encode(
-        [ walletDataType ],
+        [walletDataType],
         [
           [
             l1TokenLock.address,
@@ -236,16 +223,20 @@ describe('L2GraphTokenLockManager', () => {
       // Assume part of the managed amount were used in L1, so we don't get all of it
       const transferredAmount = initArgs.managedAmount.sub(toGRT('100000'))
 
-      const expectedInitData = tokenLockImplementation.interface.encodeFunctionData(
-        'initializeFromL1',
-        [ tokenLockManager.address, grt.address, walletData ]
-      )
+      const expectedInitData = tokenLockImplementation.interface.encodeFunctionData('initializeFromL1', [
+        tokenLockManager.address,
+        grt.address,
+        walletData,
+      ])
       const expectedInitHash = keccak256(expectedInitData)
 
       // Call onTokenTransfer from the gateway:
-      const tx = tokenLockManager.connect(gateway.signer).onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
-      
-      await expect(tx).emit(tokenLockManager, 'TokenLockCreatedFromL1')
+      const tx = tokenLockManager
+        .connect(gateway.signer)
+        .onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+
+      await expect(tx)
+        .emit(tokenLockManager, 'TokenLockCreatedFromL1')
         .withArgs(
           expectedL2Address,
           expectedInitHash,
@@ -253,12 +244,15 @@ describe('L2GraphTokenLockManager', () => {
           walletData.managedAmount,
           walletData.startTime,
           walletData.endTime,
-          walletData.l1Address
+          walletData.l1Address,
         )
-      
-      
+
       // Check that the token lock wallet was created with the correct parameters
-      const tokenLock = await ethers.getContractAt('L2GraphTokenLockWallet', expectedL2Address, deployer.signer) as L2GraphTokenLockWallet
+      const tokenLock = (await ethers.getContractAt(
+        'L2GraphTokenLockWallet',
+        expectedL2Address,
+        deployer.signer,
+      )) as L2GraphTokenLockWallet
       expect(await tokenLock.owner()).eq(initArgs.owner)
       expect(await tokenLock.beneficiary()).eq(initArgs.beneficiary)
       expect(await tokenLock.managedAmount()).eq(initArgs.managedAmount)
@@ -280,7 +274,7 @@ describe('L2GraphTokenLockManager', () => {
       initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
       const walletDataType = 'tuple(address,address,address,uint256,uint256,uint256)'
       const data = defaultAbiCoder.encode(
-        [ walletDataType ],
+        [walletDataType],
         [
           [
             l1TokenLock.address,
@@ -310,16 +304,20 @@ describe('L2GraphTokenLockManager', () => {
       // Assume part of the managed amount were used in L1, so we don't get all of it
       const transferredAmount = initArgs.managedAmount.sub(toGRT('100000'))
 
-      const expectedInitData = tokenLockImplementation.interface.encodeFunctionData(
-        'initializeFromL1',
-        [ tokenLockManager.address, grt.address, walletData ]
-      )
+      const expectedInitData = tokenLockImplementation.interface.encodeFunctionData('initializeFromL1', [
+        tokenLockManager.address,
+        grt.address,
+        walletData,
+      ])
       const expectedInitHash = keccak256(expectedInitData)
 
       // Call onTokenTransfer from the gateway:
-      const tx = tokenLockManager.connect(gateway.signer).onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
-      
-      await expect(tx).emit(tokenLockManager, 'TokenLockCreatedFromL1')
+      const tx = tokenLockManager
+        .connect(gateway.signer)
+        .onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+
+      await expect(tx)
+        .emit(tokenLockManager, 'TokenLockCreatedFromL1')
         .withArgs(
           expectedL2Address,
           expectedInitHash,
@@ -327,16 +325,21 @@ describe('L2GraphTokenLockManager', () => {
           walletData.managedAmount,
           walletData.startTime,
           walletData.endTime,
-          walletData.l1Address
+          walletData.l1Address,
         )
-      
-      
+
       // Check that the token lock wallet was created with the correct parameters
-      const tokenLock = await ethers.getContractAt('L2GraphTokenLockWallet', expectedL2Address, deployer.signer) as L2GraphTokenLockWallet
+      const tokenLock = (await ethers.getContractAt(
+        'L2GraphTokenLockWallet',
+        expectedL2Address,
+        deployer.signer,
+      )) as L2GraphTokenLockWallet
       expect(await grt.balanceOf(tokenLock.address)).eq(transferredAmount)
 
       // Call onTokenTransfer from the gateway again:
-      const tx2 = tokenLockManager.connect(gateway.signer).onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+      const tx2 = tokenLockManager
+        .connect(gateway.signer)
+        .onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
       // This tx should not emit a TokenLockCreatedFromL1 event
       await expect(tx2).to.not.emit(tokenLockManager, 'TokenLockCreatedFromL1')
       // But it should transfer the tokens to the token lock wallet
@@ -347,7 +350,7 @@ describe('L2GraphTokenLockManager', () => {
       initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
       const walletDataType = 'tuple(address,address,address,uint256,uint256,uint256)'
       const data = defaultAbiCoder.encode(
-        [ walletDataType ],
+        [walletDataType],
         [
           [
             l1TokenLock.address,
@@ -371,9 +374,13 @@ describe('L2GraphTokenLockManager', () => {
 
       // Call onTokenTransfer from the gateway:
       await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
-   
+
       // Check that the token lock wallet was created with the correct parameters
-      const tokenLock = await ethers.getContractAt('L2GraphTokenLockWallet', expectedL2Address, deployer.signer) as L2GraphTokenLockWallet
+      const tokenLock = (await ethers.getContractAt(
+        'L2GraphTokenLockWallet',
+        expectedL2Address,
+        deployer.signer,
+      )) as L2GraphTokenLockWallet
 
       // Approve the protocol
       await tokenLock.connect(beneficiary.signer).approveProtocol()
@@ -395,7 +402,7 @@ describe('L2GraphTokenLockManager', () => {
       initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
       const walletDataType = 'tuple(address,address,address,uint256,uint256,uint256)'
       const data = defaultAbiCoder.encode(
-        [ walletDataType ],
+        [walletDataType],
         [
           [
             l1TokenLock.address,
@@ -419,10 +426,14 @@ describe('L2GraphTokenLockManager', () => {
 
       // Call onTokenTransfer from the gateway:
       await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
-   
+
       // Check that the token lock wallet was created with the correct parameters
-      const tokenLock = await ethers.getContractAt('L2GraphTokenLockWallet', expectedL2Address, deployer.signer) as L2GraphTokenLockWallet
-      
+      const tokenLock = (await ethers.getContractAt(
+        'L2GraphTokenLockWallet',
+        expectedL2Address,
+        deployer.signer,
+      )) as L2GraphTokenLockWallet
+
       // Check that the releasable amount is zero
       expect(await tokenLock.releasableAmount()).eq(0)
       // After a few blocks, check that the releasable amount is still zero

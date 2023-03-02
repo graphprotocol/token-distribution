@@ -28,6 +28,7 @@ import "./IGraphTokenLockManager.sol";
  * with any of this contract functions.
  * Beneficiaries need to approve the use of the tokens to the protocol contracts. For convenience
  * the maximum amount of tokens is authorized.
+ * Function calls do not forward ETH value so DO NOT SEND ETH TO THIS CONTRACT.
  */
 contract GraphTokenLockWallet is GraphTokenLock {
     using SafeMath for uint256;
@@ -162,9 +163,11 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @notice Forward authorized contract calls to protocol contracts
      * @dev Fallback function can be called by the beneficiary only if function call is allowed
      */
+    // solhint-disable-next-line no-complex-fallback
     fallback() external payable {
         // Only beneficiary can forward calls
         require(msg.sender == beneficiary, "Unauthorized caller");
+        require(msg.value == 0, "ETH transfers not supported");
 
         // Function call validation
         address _target = manager.getAuthFunctionCallTarget(msg.sig);

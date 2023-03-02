@@ -9,17 +9,17 @@ import "./arbitrum/IBridge.sol";
  * @dev This contract implements Arbitrum's IBridge interface for testing purposes
  */
 contract BridgeMock is IBridge {
-    // Address of the (mock) Arbitrum Inbox
+    /// Address of the (mock) Arbitrum Inbox
     address public inbox;
-    // Address of the (mock) Arbitrum Outbox
+    /// Address of the (mock) Arbitrum Outbox
     address public outbox;
-    // Index of the next message on the inbox messages array
+    /// Index of the next message on the inbox messages array
     uint256 public messageIndex;
-    // Inbox messages array
+    /// Inbox messages array
     bytes32[] public override inboxAccs;
 
     /**
-     * @dev Deliver a message to the inbox. The encoded message will be
+     * @notice Deliver a message to the inbox. The encoded message will be
      * added to the inbox array, and messageIndex will be incremented.
      * @param _kind Type of the message
      * @param _sender Address that is sending the message
@@ -38,7 +38,7 @@ contract BridgeMock is IBridge {
     }
 
     /**
-     * @dev Executes an L1 function call incoing from L2. This can only be called
+     * @notice Executes an L1 function call incoing from L2. This can only be called
      * by the Outbox.
      * @param _destAddr Contract to call
      * @param _amount ETH value to send
@@ -62,7 +62,7 @@ contract BridgeMock is IBridge {
     }
 
     /**
-     * @dev Set the address of the inbox. Anyone can call this, because it's a mock.
+     * @notice Set the address of the inbox. Anyone can call this, because it's a mock.
      * @param _inbox Address of the inbox
      * @param _enabled Enable the inbox (ignored)
      */
@@ -72,7 +72,7 @@ contract BridgeMock is IBridge {
     }
 
     /**
-     * @dev Set the address of the outbox. Anyone can call this, because it's a mock.
+     * @notice Set the address of the outbox. Anyone can call this, because it's a mock.
      * @param _outbox Address of the outbox
      * @param _enabled Enable the outbox (ignored)
      */
@@ -84,14 +84,14 @@ contract BridgeMock is IBridge {
     // View functions
 
     /**
-     * @dev Getter for the active outbox (in this case there's only one)
+     * @notice Getter for the active outbox (in this case there's only one)
      */
     function activeOutbox() external view override returns (address) {
         return outbox;
     }
 
     /**
-     * @dev Getter for whether an address is an allowed inbox (in this case there's only one)
+     * @notice Getter for whether an address is an allowed inbox (in this case there's only one)
      * @param _inbox Address to check
      * @return True if the address is the allowed inbox, false otherwise
      */
@@ -100,7 +100,7 @@ contract BridgeMock is IBridge {
     }
 
     /**
-     * @dev Getter for whether an address is an allowed outbox (in this case there's only one)
+     * @notice Getter for whether an address is an allowed outbox (in this case there's only one)
      * @param _outbox Address to check
      * @return True if the address is the allowed outbox, false otherwise
      */
@@ -109,7 +109,7 @@ contract BridgeMock is IBridge {
     }
 
     /**
-     * @dev Getter for the count of messages in the inboxAccs
+     * @notice Getter for the count of messages in the inboxAccs
      * @return Number of messages in inboxAccs
      */
     function messageCount() external view override returns (uint256) {

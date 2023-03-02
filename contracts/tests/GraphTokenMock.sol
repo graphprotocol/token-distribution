@@ -6,12 +6,14 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title Graph Token Mock
+ * @title Graph Token Mock contract.
+ * @dev Used for testing purposes, DO NOT USE IN PRODUCTION
  */
 contract GraphTokenMock is Ownable, ERC20 {
     /**
-     * @dev Contract Constructor.
+     * @notice Contract Constructor.
      * @param _initialSupply Initial supply
+     * @param _mintTo Address to whitch to mint the initial supply
      */
     constructor(uint256 _initialSupply, address _mintTo) ERC20("Graph Token Mock", "GRT-Mock") {
         // Deploy to mint address
