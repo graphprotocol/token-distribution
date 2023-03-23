@@ -234,12 +234,13 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         }
 
         if (migratedWalletAddress[msg.sender] == address(0)) {
-            migratedWalletAddress[msg.sender] = getDeploymentAddress(
+            address newAddress = getDeploymentAddress(
                 keccak256(encodedData),
                 l2Implementation,
                 l2Manager
             );
-            emit MigratedWalletAddressSet(msg.sender, migratedWalletAddress[msg.sender]);
+            migratedWalletAddress[msg.sender] = newAddress;
+            emit MigratedWalletAddressSet(msg.sender, newAddress);
         } else {
             require(!migratedWalletAddressSetManually[msg.sender], "CANT_DEPOSIT_TO_MANUAL_ADDRESS");
         }
