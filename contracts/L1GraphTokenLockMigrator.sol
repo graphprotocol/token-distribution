@@ -59,6 +59,10 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
     /// L2 beneficiary corresponding to each L1 wallet address.
     /// L1 wallet => L2 beneficiary
     mapping(address => address) public migratedL2Beneficiary;
+    /// Indicates whether a migrated wallet address for a wallet
+    /// has been set manually, in which case it can't call depositToL2Locked.
+    /// L1 wallet => bool
+    mapping(address => bool) public migratedWalletAddressSetManually;
 
     /// @dev Emitted when the L2 lock manager for an L1 lock manager is set
     event L2LockManagerSet(address indexed l1LockManager, address indexed l2LockManager);
@@ -72,6 +76,8 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         address l2LockManager,
         uint256 amount
     );
+    /// @dev Emitted when an L2 wallet address is set for a migrated L1 wallet
+    event MigratedWalletAddressSet(address indexed l1Wallet, address indexed l2Wallet);
     /// @dev Emitted when ETH is deposited to a token lock's account
     event ETHDeposited(address indexed tokenLock, uint256 amount);
     /// @dev Emitted when ETH is withdrawn from a token lock's account
@@ -233,6 +239,9 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
                 l2Implementation,
                 l2Manager
             );
+            emit MigratedWalletAddressSet(msg.sender, migratedWalletAddress[msg.sender]);
+        } else {
+            require(!migratedWalletAddressSetManually[msg.sender], "CANT_DEPOSIT_TO_MANUAL_ADDRESS");
         }
 
         graphToken.transferFrom(msg.sender, address(this), _amount);
@@ -251,5 +260,38 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
             );
         }
         emit LockedFundsSentToL2(msg.sender, migratedWalletAddress[msg.sender], l1Manager, l2Manager, _amount);
+    }
+
+    /**
+     * @notice Manually set the L2 wallet address for a token lock in L1.
+     * This will only work for token locks that have not been migrated to L2 yet, and
+     * that are fully vested (endTime < current timestamp).
+     * This address can then be used to send stake or delegation to L2 on the Staking contract.
+     * After calling this, the vesting lock will NOT be allowed to use depositToL2Locked
+     * to send GRT to L2, the beneficiary must withdraw the tokens and bridge them manually.
+     * @param _l2Wallet Address of the L2 wallet
+     */
+    function setL2WalletAddressManually(address _l2Wallet) external {
+        // Check that msg.sender is a GraphTokenLockWallet
+        // That uses GRT and has a corresponding manager set in L2.
+        GraphTokenLockWallet wallet = GraphTokenLockWallet(msg.sender);
+        require(wallet.token() == graphToken, "INVALID_TOKEN");
+        address l1Manager = address(wallet.manager());
+        address l2Manager = l2LockManager[l1Manager];
+        require(l2Manager != address(0), "INVALID_MANAGER");
+        require(wallet.isInitialized(), "!INITIALIZED");
+
+        // Check that the wallet is fully vested
+        require(wallet.endTime() < block.timestamp, "NOT_FULLY_VESTED");
+
+        // Check that the wallet has not been migrated to L2 yet
+        require(migratedWalletAddress[msg.sender] == address(0), "ALREADY_MIGRATED");
+
+        // Check that the L2 address is not zero
+        require(_l2Wallet != address(0), "ZERO_ADDRESS");
+        // Set the L2 wallet address
+        migratedWalletAddress[msg.sender] = _l2Wallet;
+        migratedWalletAddressSetManually[msg.sender] = true;
+        emit MigratedWalletAddressSet(msg.sender, _l2Wallet);
     }
 }

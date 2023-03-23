@@ -90,8 +90,12 @@ async function authProtocolFunctions(
   await tokenLockManager.setAuthFunctionCall('stake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('unstake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('withdraw()', stakingAddress)
-  await tokenLockManager.setAuthFunctionCall('depositToL2Locked(uint256,address,uint256,uint256,uint256)', migratorAddress)
+  await tokenLockManager.setAuthFunctionCall(
+    'depositToL2Locked(uint256,address,uint256,uint256,uint256)',
+    migratorAddress,
+  )
   await tokenLockManager.setAuthFunctionCall('withdrawETH(address,uint256)', migratorAddress)
+  await tokenLockManager.setAuthFunctionCall('setL2WalletAddressManually(address)', migratorAddress)
 }
 
 // -- Tests --
@@ -138,7 +142,8 @@ describe('L1GraphTokenLockMigrator', () => {
   }
 
   before(async function () {
-    ;[deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock, l2Owner, l2Beneficiary] = await getAccounts()
+    ;[deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock, l2Owner, l2Beneficiary] =
+      await getAccounts()
   })
 
   beforeEach(async () => {
@@ -519,6 +524,75 @@ describe('L1GraphTokenLockMigrator', () => {
           .connect(beneficiary.signer)
           .depositToL2Locked(amountToSend, l2Owner.address, maxGas, gasPrice, maxSubmissionCost),
       ).to.be.revertedWith('INVALID_BENEFICIARY')
+    })
+  })
+  describe('Setting an L2 wallet address manually', function () {
+    it('sets the migratedWalletAddress for a token lock that is fully-vested', async function () {
+      initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
+      initArgs.startTime = initArgs.endTime - 1000
+
+      tokenLock = await initWithArgs(initArgs)
+      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+
+      const tx = await lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
+      await expect(tx).emit(migrator, 'MigratedWalletAddressSet').withArgs(tokenLock.address, l2Beneficiary.address)
+      expect(await migrator.migratedWalletAddress(tokenLock.address)).to.equal(l2Beneficiary.address)
+    })
+    it('reverts for a wallet that is not fully-vested', async function () {
+      await expect(
+        lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
+      ).to.be.revertedWith('NOT_FULLY_VESTED')
+    })
+    it('reverts for a wallet that has already had the address set', async function () {
+      initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
+      initArgs.startTime = initArgs.endTime - 1000
+
+      tokenLock = await initWithArgs(initArgs)
+      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      await lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
+
+      await expect(
+        lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
+      ).to.be.revertedWith('ALREADY_MIGRATED')
+    })
+    it('reverts for a wallet that has previously called depositToL2Locked', async function () {
+      initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
+      initArgs.startTime = initArgs.endTime - 1000
+
+      tokenLock = await initWithArgs(initArgs)
+      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      await tokenLock.connect(beneficiary.signer).approveProtocol()
+      const amountToSend = toGRT('1000')
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
+
+      await expect(
+        lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
+      ).to.be.revertedWith('ALREADY_MIGRATED')
+    })
+    it('prevents subsequent calls to depositToL2Locked from working', async function () {
+      initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
+      initArgs.startTime = initArgs.endTime - 1000
+
+      tokenLock = await initWithArgs(initArgs)
+      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      await tokenLock.connect(beneficiary.signer).approveProtocol()
+      const amountToSend = toGRT('1000')
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+
+      await lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
+
+      await expect(
+        lockAsMigrator
+          .connect(beneficiary.signer)
+          .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost),
+      ).to.be.revertedWith('CANT_DEPOSIT_TO_MANUAL_ADDRESS')
     })
   })
 })
