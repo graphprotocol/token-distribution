@@ -55,6 +55,9 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
     /// ETH balance from each token lock, used to pay for L2 gas:
     /// L1 wallet address => ETH balance
     mapping(address => uint256) public tokenLockETHBalances;
+    /// L2 beneficiary corresponding to each L1 wallet address.
+    /// L1 wallet => L2 beneficiary
+    mapping(address => address) public migratedL2Beneficiary;
 
     /// @dev Emitted when the L2 lock manager for an L1 lock manager is set
     event L2LockManagerSet(address indexed l1LockManager, address indexed l2LockManager);
@@ -171,12 +174,14 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
      * You can add ETH to the token lock's account by calling depositETH().
      * @dev The gas parameters for L2 can be estimated using the Arbitrum SDK.
      * @param _amount Amount of GRT to deposit
+     * @param _l2Beneficiary Address of the beneficiary for the token lock in L2. Must be the same for subsequent calls of this function.
      * @param _maxGas Maximum gas to use for the L2 retryable ticket
      * @param _gasPriceBid Gas price to use for the L2 retryable ticket
      * @param _maxSubmissionCost Max submission cost for the L2 retryable ticket
      */
     function depositToL2Locked(
         uint256 _amount,
+        address _l2Beneficiary,
         uint256 _maxGas,
         uint256 _gasPriceBid,
         uint256 _maxSubmissionCost
@@ -188,11 +193,16 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         address l1Manager = address(wallet.manager());
         address l2Manager = l2LockManager[l1Manager];
         require(l2Manager != address(0), "INVALID_MANAGER");
-        require(wallet.isAccepted(), "!ACCEPTED");
         require(wallet.isInitialized(), "!INITIALIZED");
         require(wallet.revocable() != IGraphTokenLock.Revocability.Enabled, "REVOCABLE");
         require(_amount <= graphToken.balanceOf(msg.sender), "INSUFFICIENT_BALANCE");
         require(_amount != 0, "ZERO_AMOUNT");
+
+        if (migratedL2Beneficiary[msg.sender] == address(0)) {
+            migratedL2Beneficiary[msg.sender] = _l2Beneficiary;
+        } else {
+            require(migratedL2Beneficiary[msg.sender] == _l2Beneficiary, "INVALID_BENEFICIARY");
+        }
 
         uint256 expectedEth = _maxSubmissionCost.add(_maxGas.mul(_gasPriceBid));
         require(tokenLockETHBalances[msg.sender] >= expectedEth, "INSUFFICIENT_ETH_BALANCE");
@@ -206,7 +216,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
             L2GraphTokenLockManager.MigratedWalletData memory data = L2GraphTokenLockManager.MigratedWalletData({
                 l1Address: msg.sender,
                 owner: l2Owner,
-                beneficiary: wallet.beneficiary(),
+                beneficiary: migratedL2Beneficiary[msg.sender],
                 managedAmount: wallet.managedAmount(),
                 startTime: wallet.startTime(),
                 endTime: wallet.endTime()

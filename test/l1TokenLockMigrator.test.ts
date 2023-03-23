@@ -90,7 +90,7 @@ async function authProtocolFunctions(
   await tokenLockManager.setAuthFunctionCall('stake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('unstake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('withdraw()', stakingAddress)
-  await tokenLockManager.setAuthFunctionCall('depositToL2Locked(uint256,uint256,uint256,uint256)', migratorAddress)
+  await tokenLockManager.setAuthFunctionCall('depositToL2Locked(uint256,address,uint256,uint256,uint256)', migratorAddress)
   await tokenLockManager.setAuthFunctionCall('withdrawETH(address,uint256)', migratorAddress)
 }
 
@@ -108,6 +108,7 @@ describe('L1GraphTokenLockMigrator', () => {
   let l2ManagerMock: Account
   let l2LockImplementationMock: Account
   let l2Owner: Account
+  let l2Beneficiary: Account
 
   let grt: GraphTokenMock
   let tokenLock: GraphTokenLockWallet
@@ -137,7 +138,7 @@ describe('L1GraphTokenLockMigrator', () => {
   }
 
   before(async function () {
-    ;[deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock, l2Owner] = await getAccounts()
+    ;[deployer, beneficiary, hacker, l2ManagerMock, l2LockImplementationMock, l2Owner, l2Beneficiary] = await getAccounts()
   })
 
   beforeEach(async () => {
@@ -230,7 +231,7 @@ describe('L1GraphTokenLockMigrator', () => {
       await migrator.setL2LockManager(tokenLockManager.address, AddressZero)
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('10000000'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INVALID_MANAGER')
     })
     it('rejects calls if the L2 owner for the wallet is not set', async function () {
@@ -245,7 +246,7 @@ describe('L1GraphTokenLockMigrator', () => {
       await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('L2_OWNER_NOT_SET')
     })
 
@@ -260,17 +261,11 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const tx = walletAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('10000000'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INVALID_TOKEN')
     })
 
-    it('rejects calls from a wallet that has not accepted the lock', async function () {
-      const tx = lockAsMigrator
-        .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('10000000'), maxGas, gasPrice, maxSubmissionCost)
-      await expect(tx).revertedWith('!ACCEPTED')
-    })
-    it('rejects calls from a wallets that is not initialized', async function () {
+    it('rejects calls from a wallet that is not initialized', async function () {
       // WalletMock constructor args are: target, token, manager, isInitialized, isAccepted
       await deployments.deploy('WalletMock', {
         from: deployer.address,
@@ -281,7 +276,7 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const tx = walletAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('10000000'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('!INITIALIZED')
     })
     it('rejects calls from a revocable wallet', async function () {
@@ -293,7 +288,7 @@ describe('L1GraphTokenLockMigrator', () => {
       await tokenLock.connect(beneficiary.signer).approveProtocol()
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('10000000'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('REVOCABLE')
     })
     it('rejects calls if the wallet does not have enough tokens', async function () {
@@ -301,7 +296,7 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('35000001'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('35000001'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INSUFFICIENT_BALANCE')
     })
     it('rejects calls if the amount is zero', async function () {
@@ -309,7 +304,7 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('0'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('0'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('ZERO_AMOUNT')
     })
     it('rejects calls if the wallet does not have a sufficient ETH balance previously deposited', async function () {
@@ -317,14 +312,14 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('35000000'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('35000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INSUFFICIENT_ETH_BALANCE')
 
       // Try again but with an ETH balance that is insufficient by 1 wei
       await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.sub(1) })
       const tx2 = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(toGRT('35000000'), maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(toGRT('35000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx2).revertedWith('INSUFFICIENT_ETH_BALANCE')
     })
     it('sends tokens and a callhook to the L2 manager registered for the wallet', async function () {
@@ -337,7 +332,7 @@ describe('L1GraphTokenLockMigrator', () => {
           [
             tokenLock.address,
             l2Owner.address,
-            initArgs.beneficiary,
+            l2Beneficiary.address,
             initArgs.managedAmount,
             initArgs.startTime,
             initArgs.endTime,
@@ -362,7 +357,7 @@ describe('L1GraphTokenLockMigrator', () => {
       await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx)
         .emit(migrator, 'LockedFundsSentToL2')
         .withArgs(
@@ -389,7 +384,7 @@ describe('L1GraphTokenLockMigrator', () => {
           [
             tokenLock.address,
             l2Owner.address,
-            initArgs.beneficiary,
+            l2Beneficiary.address,
             initArgs.managedAmount,
             initArgs.startTime,
             initArgs.endTime,
@@ -414,11 +409,11 @@ describe('L1GraphTokenLockMigrator', () => {
       await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.mul(2) })
       await lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       // Call again
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx)
         .emit(migrator, 'LockedFundsSentToL2')
         .withArgs(
@@ -451,7 +446,7 @@ describe('L1GraphTokenLockMigrator', () => {
           [
             tokenLock.address,
             l2Owner.address,
-            initArgs.beneficiary,
+            l2Beneficiary.address,
             initArgs.managedAmount,
             initArgs.startTime,
             initArgs.endTime,
@@ -476,7 +471,7 @@ describe('L1GraphTokenLockMigrator', () => {
       await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
       const tx = lockAsMigrator
         .connect(beneficiary.signer)
-        .depositToL2Locked(amountToSend, maxGas, gasPrice, maxSubmissionCost)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx)
         .emit(migrator, 'LockedFundsSentToL2')
         .withArgs(
@@ -492,6 +487,22 @@ describe('L1GraphTokenLockMigrator', () => {
         .withArgs(migrator.address, ticketValue, maxGas, gasPrice, maxSubmissionCost, expectedOutboundCalldata)
       // and check that the right amount of funds have been pulled from the token lock
       expect(await grt.balanceOf(tokenLock.address)).to.equal(initArgs.managedAmount.sub(amountToSend).sub(stakeAmount))
+    })
+    it('rejects calling a second time if the l2 beneficiary is different', async function () {
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      const amountToSend = toGRT('1000')
+
+      // Good hacker pays for the gas
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
+      // Call again
+      await expect(
+        lockAsMigrator
+          .connect(beneficiary.signer)
+          .depositToL2Locked(amountToSend, l2Owner.address, maxGas, gasPrice, maxSubmissionCost),
+      ).to.be.revertedWith('INVALID_BENEFICIARY')
     })
   })
 })
