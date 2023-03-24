@@ -179,6 +179,9 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
      * Before calling this (which must be done through the token lock wallet), make sure
      * there is enough ETH in the token lock's account to cover the L2 retryable ticket gas.
      * You can add ETH to the token lock's account by calling depositETH().
+     * Note that after calling this, you will NOT be able to use setL2WalletAddressManually() to
+     * set an L2 wallet address, as the L2 wallet address will be set automatically when the
+     * message is received by the L2GraphTokenLockManager.
      * @dev The gas parameters for L2 can be estimated using the Arbitrum SDK.
      * @param _amount Amount of GRT to deposit
      * @param _l2Beneficiary Address of the beneficiary for the token lock in L2. Must be the same for subsequent calls of this function, and not an L1 contract.
