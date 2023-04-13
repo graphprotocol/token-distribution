@@ -172,6 +172,7 @@ describe('L2GraphTokenLockManager', () => {
       expect(await tokenLock.releaseStartTime()).eq(initArgs.releaseStartTime)
       expect(await tokenLock.vestingCliffTime()).eq(initArgs.vestingCliffTime)
       expect(await tokenLock.revocable()).eq(initArgs.revocable)
+      expect(await tokenLock.isAccepted()).eq(false)
 
       expect(await grt.balanceOf(tokenLock.address)).eq(initArgs.managedAmount)
 
@@ -263,6 +264,7 @@ describe('L2GraphTokenLockManager', () => {
       expect(await tokenLock.vestingCliffTime()).eq(0)
       expect(await tokenLock.revocable()).eq(Revocability.Disabled)
       expect(await grt.balanceOf(tokenLock.address)).eq(transferredAmount)
+      expect(await tokenLock.isAccepted()).eq(true)
 
       // The mapping for L1 address to L2 address should be set correctly
       expect(await tokenLockManager.l1WalletToL2Wallet(l1TokenLock.address)).eq(expectedL2Address)

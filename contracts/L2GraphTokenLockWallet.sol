@@ -52,6 +52,7 @@ contract L2GraphTokenLockWallet is GraphTokenLockWallet {
         startTime = _walletData.startTime;
         endTime = _walletData.endTime;
         periods = 1;
+        isAccepted = true;
 
         // Optionals
         releaseStartTime = _walletData.endTime;
