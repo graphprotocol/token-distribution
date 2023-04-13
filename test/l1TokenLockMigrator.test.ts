@@ -322,6 +322,22 @@ describe('L1GraphTokenLockMigrator', () => {
         .depositToL2Locked(toGRT('35000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx2).revertedWith('INSUFFICIENT_ETH_BALANCE')
     })
+    it('rejects calls if the L2 beneficiary is zero', async function () {
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(toGRT('10000000'), AddressZero, maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx).revertedWith('INVALID_BENEFICIARY_ZERO')
+    })
+    it('rejects calls if the L2 beneficiary is a contract', async function () {
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(toGRT('10000000'), staking.address, maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx).revertedWith('INVALID_BENEFICIARY_CONTRACT')
+    })
     it('sends tokens and a callhook to the L2 manager registered for the wallet', async function () {
       await tokenLock.connect(beneficiary.signer).acceptLock()
       const amountToSend = toGRT('1000')

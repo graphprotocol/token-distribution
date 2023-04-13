@@ -3,6 +3,7 @@
 pragma solidity ^0.7.3;
 pragma experimental ABIEncoderV2;
 
+import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 import { ITokenGateway } from "./arbitrum/ITokenGateway.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
@@ -174,7 +175,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
      * You can add ETH to the token lock's account by calling depositETH().
      * @dev The gas parameters for L2 can be estimated using the Arbitrum SDK.
      * @param _amount Amount of GRT to deposit
-     * @param _l2Beneficiary Address of the beneficiary for the token lock in L2. Must be the same for subsequent calls of this function.
+     * @param _l2Beneficiary Address of the beneficiary for the token lock in L2. Must be the same for subsequent calls of this function, and not an L1 contract.
      * @param _maxGas Maximum gas to use for the L2 retryable ticket
      * @param _gasPriceBid Gas price to use for the L2 retryable ticket
      * @param _maxSubmissionCost Max submission cost for the L2 retryable ticket
@@ -199,6 +200,8 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         require(_amount != 0, "ZERO_AMOUNT");
 
         if (migratedL2Beneficiary[msg.sender] == address(0)) {
+            require(_l2Beneficiary != address(0), "INVALID_BENEFICIARY_ZERO");
+            require(!Address.isContract(_l2Beneficiary), "INVALID_BENEFICIARY_CONTRACT");
             migratedL2Beneficiary[msg.sender] = _l2Beneficiary;
         } else {
             require(migratedL2Beneficiary[msg.sender] == _l2Beneficiary, "INVALID_BENEFICIARY");
