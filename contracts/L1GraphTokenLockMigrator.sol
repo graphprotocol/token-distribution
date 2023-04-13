@@ -178,6 +178,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
      * by the L2GraphTokenLockManager.
      * Before calling this (which must be done through the token lock wallet), make sure
      * there is enough ETH in the token lock's account to cover the L2 retryable ticket gas.
+     * Note that L2 submission fee and gas refunds will be lost.
      * You can add ETH to the token lock's account by calling depositETH().
      * Note that after calling this, you will NOT be able to use setL2WalletAddressManually() to
      * set an L2 wallet address, as the L2 wallet address will be set automatically when the
