@@ -1,4 +1,4 @@
-import { constants, Signer } from 'ethers'
+import { BigNumber, constants, Signer } from 'ethers'
 import { expect } from 'chai'
 import { deployments, ethers, upgrades } from 'hardhat'
 
@@ -227,6 +227,11 @@ describe('L1GraphTokenLockMigrator', () => {
       expect(await ethers.provider.getBalance(migrator.address)).to.eq(0)
       expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(0)
       expect(await ethers.provider.getBalance(hacker.address)).to.eq(prevBalance.add(ticketValue))
+    })
+    it('fails when trying to withdraw 0 eth from a token lock account', async function () {
+      // We'll withdraw to the "hacker" account so that we don't need to subtract gas
+      const tx = lockAsMigrator.connect(beneficiary.signer).withdrawETH(hacker.address, BigNumber.from(0))
+      await expect(tx).revertedWith('INVALID_AMOUNT')
     })
     it('allows the Staking contract to pull ETH from the token lock account', async function () {
       await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })

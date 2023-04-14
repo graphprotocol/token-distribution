@@ -156,6 +156,7 @@ contract L1GraphTokenLockMigrator is Ownable, Initializable, MinimalProxyFactory
      * @param _amount Amount of ETH to send
      */
     function withdrawETH(address _destination, uint256 _amount) external {
+        require(_amount > 0, "INVALID_AMOUNT");
         // We can't send eth to a token lock or it will be stuck
         require(msg.sender != _destination, "INVALID_DESTINATION");
         require(tokenLockETHBalances[msg.sender] >= _amount, "INSUFFICIENT_BALANCE");
