@@ -8,7 +8,6 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import { ICallhookReceiver } from "./ICallhookReceiver.sol";
 import { GraphTokenLockManager } from "./GraphTokenLockManager.sol";
-import { IGraphTokenLock } from "./IGraphTokenLock.sol";
 
 /**
  * @title L2GraphTokenLockManager
