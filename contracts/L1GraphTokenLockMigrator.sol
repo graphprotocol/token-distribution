@@ -97,7 +97,7 @@ contract L1GraphTokenLockMigrator is Ownable, Initializable, MinimalProxyFactory
      * @param _l1Gateway Address of the L1GraphTokenGateway contract
      * @param _staking Address of the Staking contract
      */
-    constructor(IERC20 _graphToken, address _l2Implementation, ITokenGateway _l1Gateway, address payable _staking) {
+    constructor(IERC20 _graphToken, address _l2Implementation, ITokenGateway _l1Gateway, address payable _staking) initializer {
         Ownable._initialize(msg.sender);
         graphToken = _graphToken;
         l2Implementation = _l2Implementation;
