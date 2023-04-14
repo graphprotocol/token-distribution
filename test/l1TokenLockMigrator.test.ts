@@ -63,14 +63,11 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
 
   // Deploy migrator using a proxy
   const migratorFactory = await ethers.getContractFactory('L1GraphTokenLockMigrator')
-  const migrator = await upgrades.deployProxy(
-    migratorFactory,[ deployer.address ],
-    {
-      kind: 'transparent',
-      unsafeAllow: ['state-variable-immutable', 'constructor'],
-      constructorArgs: [grt.address, l2LockImplementationMock.address, gateway.address, staking.address]
-    },
-  ) as L1GraphTokenLockMigrator
+  const migrator = (await upgrades.deployProxy(migratorFactory, [deployer.address], {
+    kind: 'transparent',
+    unsafeAllow: ['state-variable-immutable', 'constructor'],
+    constructorArgs: [grt.address, l2LockImplementationMock.address, gateway.address, staking.address],
+  })) as L1GraphTokenLockMigrator
 
   // Fund the manager contract
   await grt.connect(deployer.signer).transfer(tokenLockManager.address, toGRT('100000000'))
@@ -171,6 +168,23 @@ describe('L1GraphTokenLockMigrator', () => {
     await migrator.setL2WalletOwner(deployer.address, l2Owner.address)
   })
 
+  describe('Upgrades', function () {
+    it('should be upgradeable', async function () {
+      const migratorFactory = await ethers.getContractFactory('L1GraphTokenLockMigrator')
+      migrator = (await upgrades.upgradeProxy(migrator.address, migratorFactory, {
+        kind: 'transparent',
+        unsafeAllow: ['state-variable-immutable', 'constructor'],
+        constructorArgs: [beneficiary.address, l2LockImplementationMock.address, gateway.address, staking.address],
+      })) as L1GraphTokenLockMigrator
+      expect(await migrator.graphToken()).to.eq(beneficiary.address)
+      migrator = (await upgrades.upgradeProxy(migrator.address, migratorFactory, {
+        kind: 'transparent',
+        unsafeAllow: ['state-variable-immutable', 'constructor'],
+        constructorArgs: [grt.address, l2LockImplementationMock.address, gateway.address, staking.address],
+      })) as L1GraphTokenLockMigrator
+      expect(await migrator.graphToken()).to.eq(grt.address)
+    })
+  })
   describe('Registering L2 managers', function () {
     it('rejects calls from non-owners', async function () {
       const tx = migrator.connect(beneficiary.signer).setL2LockManager(beneficiary.address, hacker.address)

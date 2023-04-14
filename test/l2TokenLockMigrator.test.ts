@@ -57,19 +57,12 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
 
   // Deploy migrator using a proxy
   const migratorFactory = await ethers.getContractFactory('L2GraphTokenLockMigrator')
-  const tokenLockMigrator = await upgrades.deployProxy(
-    migratorFactory, [],
-    {
-      kind: 'transparent',
-      unsafeAllow: ['state-variable-immutable', 'constructor'],
-      constructorArgs: [grt.address, gateway.address, l1GRTMock.address]
-    },
-  ) as L2GraphTokenLockMigrator
-  // await deploy('L2GraphTokenLockMigrator', {
-  //   from: deployer.address,
-  //   args: [grt.address, gateway.address, l1GRTMock.address],
-  // })
-  // const tokenLockMigrator = await getContract('L2GraphTokenLockMigrator')
+  const tokenLockMigrator = (await upgrades.deployProxy(migratorFactory, [], {
+    kind: 'transparent',
+    unsafeAllow: ['state-variable-immutable', 'constructor'],
+    constructorArgs: [grt.address, gateway.address, l1GRTMock.address],
+  })) as L2GraphTokenLockMigrator
+
   // Fund the manager contract
   await grt.connect(deployer.signer).transfer(tokenLockManager.address, toGRT('100000000'))
 
@@ -173,6 +166,23 @@ describe('L2GraphTokenLockMigrator', () => {
     await tokenLockManager.addTokenDestination(tokenLockMigrator.address)
   })
 
+  describe('Upgrades', function () {
+    it('should be upgradeable', async function () {
+      const migratorFactory = await ethers.getContractFactory('L2GraphTokenLockMigrator')
+      tokenLockMigrator = (await upgrades.upgradeProxy(tokenLockMigrator.address, migratorFactory, {
+        kind: 'transparent',
+        unsafeAllow: ['state-variable-immutable', 'constructor'],
+        constructorArgs: [beneficiary.address, gateway.address, l1GRTMock.address],
+      })) as L2GraphTokenLockMigrator
+      expect(await tokenLockMigrator.graphToken()).to.eq(beneficiary.address)
+      tokenLockMigrator = (await upgrades.upgradeProxy(tokenLockMigrator.address, migratorFactory, {
+        kind: 'transparent',
+        unsafeAllow: ['state-variable-immutable', 'constructor'],
+        constructorArgs: [grt.address, gateway.address, l1GRTMock.address],
+      })) as L2GraphTokenLockMigrator
+      expect(await tokenLockMigrator.graphToken()).to.eq(grt.address)
+    })
+  })
   describe('withdrawToL1Locked', function () {
     it('allows a token lock wallet to send GRT to L1 through the gateway', async function () {
       tokenLock = await initFromL1()
