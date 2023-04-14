@@ -3,15 +3,16 @@
 pragma solidity ^0.7.3;
 pragma experimental ABIEncoderV2;
 
-import { Address } from "@openzeppelin/contracts/utils/Address.sol";
+import { AddressUpgradeable } from "@openzeppelin/contracts-upgradeable/utils/AddressUpgradeable.sol";
 import { ITokenGateway } from "./arbitrum/ITokenGateway.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
 import { GraphTokenLockWallet } from "./GraphTokenLockWallet.sol";
 import { MinimalProxyFactory } from "./MinimalProxyFactory.sol";
 import { IGraphTokenLock } from "./IGraphTokenLock.sol";
-import { Ownable as OZOwnable } from "@openzeppelin/contracts/access/Ownable.sol";
-import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
+import { Ownable } from "./Ownable.sol";
+import { SafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
+import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
 /**
  * @title L1GraphTokenLockMigrator contract
@@ -33,8 +34,8 @@ import { SafeMath } from "@openzeppelin/contracts/math/SafeMath.sol";
  *
  * See GIP-0046 for more details: https://forum.thegraph.com/t/gip-0046-l2-migration-helpers/4023
  */
-contract L1GraphTokenLockMigrator is MinimalProxyFactory {
-    using SafeMath for uint256;
+contract L1GraphTokenLockMigrator is Ownable, Initializable, MinimalProxyFactory {
+    using SafeMathUpgradeable for uint256;
 
     /// Address of the L1 GRT token contract
     IERC20 public immutable graphToken;
@@ -88,21 +89,30 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
     /**
      * @notice Construct a new L1GraphTokenLockMigrator contract
      * @dev The deployer of the contract will become its owner.
+     * Note this contract is meant to be deployed behind a transparent proxy,
+     * so this will run at the implementation's storage context; it will set
+     * immutable variables and make the implementation be owned by the deployer.
      * @param _graphToken Address of the L1 GRT token contract
      * @param _l2Implementation Address of the L2GraphTokenLockWallet implementation in L2
      * @param _l1Gateway Address of the L1GraphTokenGateway contract
      * @param _staking Address of the Staking contract
      */
-    constructor(
-        IERC20 _graphToken,
-        address _l2Implementation,
-        ITokenGateway _l1Gateway,
-        address payable _staking
-    ) OZOwnable() {
+    constructor(IERC20 _graphToken, address _l2Implementation, ITokenGateway _l1Gateway, address payable _staking) {
+        Ownable._initialize(msg.sender);
         graphToken = _graphToken;
         l2Implementation = _l2Implementation;
         l1Gateway = _l1Gateway;
         staking = _staking;
+    }
+
+    /**
+     * @notice Initialize the L1GraphTokenLockMigrator contract
+     * @dev This function will run in the proxy's storage context, so it will
+     * set the owner of the proxy contract which can be different from the implementation owner.
+     * @param _owner Address of the owner of the L1GraphTokenLockMigrator contract
+     */
+    function initialize(address _owner) external initializer {
+        Ownable._initialize(_owner);
     }
 
     /**
@@ -211,7 +221,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
 
         if (migratedL2Beneficiary[msg.sender] == address(0)) {
             require(_l2Beneficiary != address(0), "INVALID_BENEFICIARY_ZERO");
-            require(!Address.isContract(_l2Beneficiary), "INVALID_BENEFICIARY_CONTRACT");
+            require(!AddressUpgradeable.isContract(_l2Beneficiary), "INVALID_BENEFICIARY_CONTRACT");
             migratedL2Beneficiary[msg.sender] = _l2Beneficiary;
         } else {
             require(migratedL2Beneficiary[msg.sender] == _l2Beneficiary, "INVALID_BENEFICIARY");
@@ -238,11 +248,7 @@ contract L1GraphTokenLockMigrator is MinimalProxyFactory {
         }
 
         if (migratedWalletAddress[msg.sender] == address(0)) {
-            address newAddress = getDeploymentAddress(
-                keccak256(encodedData),
-                l2Implementation,
-                l2Manager
-            );
+            address newAddress = getDeploymentAddress(keccak256(encodedData), l2Implementation, l2Manager);
             migratedWalletAddress[msg.sender] = newAddress;
             emit MigratedWalletAddressSet(msg.sender, newAddress);
         } else {

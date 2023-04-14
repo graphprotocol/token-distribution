@@ -39,7 +39,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
     IGraphTokenLockManager public manager;
     uint256 public usedAmount;
 
-    uint256 private constant MAX_UINT256 = 2**256 - 1;
+    uint256 private constant MAX_UINT256 = 2 ** 256 - 1;
 
     // -- Events --
 

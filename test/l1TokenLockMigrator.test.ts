@@ -1,6 +1,6 @@
 import { constants, Signer } from 'ethers'
 import { expect } from 'chai'
-import { deployments, ethers } from 'hardhat'
+import { deployments, ethers, upgrades } from 'hardhat'
 
 import '@nomiclabs/hardhat-ethers'
 import 'hardhat-deploy'
@@ -61,13 +61,16 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   await deploy('L1TokenGatewayMock', { from: deployer.address, args: [] })
   const gateway = await getContract('L1TokenGatewayMock')
 
-  // Deploy migrator
-
-  await deploy('L1GraphTokenLockMigrator', {
-    from: deployer.address,
-    args: [grt.address, l2LockImplementationMock.address, gateway.address, staking.address],
-  })
-  const migrator = await getContract('L1GraphTokenLockMigrator')
+  // Deploy migrator using a proxy
+  const migratorFactory = await ethers.getContractFactory('L1GraphTokenLockMigrator')
+  const migrator = await upgrades.deployProxy(
+    migratorFactory,[ deployer.address ],
+    {
+      kind: 'transparent',
+      unsafeAllow: ['state-variable-immutable', 'constructor'],
+      constructorArgs: [grt.address, l2LockImplementationMock.address, gateway.address, staking.address]
+    },
+  ) as L1GraphTokenLockMigrator
 
   // Fund the manager contract
   await grt.connect(deployer.signer).transfer(tokenLockManager.address, toGRT('100000000'))

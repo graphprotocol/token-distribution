@@ -22,7 +22,7 @@ contract Ownable {
     /**
      * @dev Initializes the contract setting the deployer as the initial owner.
      */
-    function initialize(address owner) internal {
+    function _initialize(address owner) internal {
         _owner = owner;
         emit OwnershipTransferred(address(0), owner);
     }

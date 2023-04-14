@@ -119,7 +119,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
 
         isInitialized = true;
 
-        Ownable.initialize(_owner);
+        Ownable._initialize(_owner);
         beneficiary = _beneficiary;
         token = IERC20(_token);
 

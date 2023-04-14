@@ -100,11 +100,7 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
      * @param _amount Amount of tokens received
      * @param _data Encoded data of the migrated wallet, which must be an ABI-encoded MigratedWalletData struct
      */
-    function onTokenTransfer(
-        address _from,
-        uint256 _amount,
-        bytes calldata _data
-    ) external override onlyL2Gateway {
+    function onTokenTransfer(address _from, uint256 _amount, bytes calldata _data) external override onlyL2Gateway {
         require(_from == l1Migrator, "ONLY_MIGRATOR");
         MigratedWalletData memory walletData = abi.decode(_data, (MigratedWalletData));
 

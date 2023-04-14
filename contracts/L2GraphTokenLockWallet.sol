@@ -43,7 +43,7 @@ contract L2GraphTokenLockWallet is GraphTokenLockWallet {
         require(!isInitialized, "Already initialized");
         isInitialized = true;
 
-        Ownable.initialize(_walletData.owner);
+        Ownable._initialize(_walletData.owner);
         beneficiary = _walletData.beneficiary;
         token = IERC20(_token);
 

@@ -34,13 +34,7 @@ contract WalletMock {
      * @param _isInitialized Whether the wallet has been initialized
      * @param _isAccepted Whether the beneficiary has accepted the lock
      */
-    constructor(
-        address _target,
-        address _token,
-        address _manager,
-        bool _isInitialized,
-        bool _isAccepted
-    ) {
+    constructor(address _target, address _token, address _manager, bool _isInitialized, bool _isAccepted) {
         target = _target;
         token = _token;
         manager = _manager;

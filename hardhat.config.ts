@@ -12,6 +12,7 @@ import 'hardhat-deploy'
 import 'hardhat-abi-exporter'
 import '@typechain/hardhat'
 import 'hardhat-gas-reporter'
+import '@openzeppelin/hardhat-upgrades'
 
 // Tasks
 

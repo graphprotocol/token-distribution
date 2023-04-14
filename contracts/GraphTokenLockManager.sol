@@ -7,6 +7,7 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
+import { Ownable as OZOwnable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./MinimalProxyFactory.sol";
 import "./IGraphTokenLockManager.sol";
@@ -23,7 +24,7 @@ import "./IGraphTokenLockManager.sol";
  * approve the pulling of funds, this way in can be guaranteed that only protocol contracts
  * will manipulate users funds.
  */
-contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
+contract GraphTokenLockManager is OZOwnable, MinimalProxyFactory, IGraphTokenLockManager {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -245,11 +246,10 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
      * @param _signatures Function signatures
      * @param _targets Address of the destination contract to call
      */
-    function setAuthFunctionCallMany(string[] calldata _signatures, address[] calldata _targets)
-        external
-        override
-        onlyOwner
-    {
+    function setAuthFunctionCallMany(
+        string[] calldata _signatures,
+        address[] calldata _targets
+    ) external override onlyOwner {
         require(_signatures.length == _targets.length, "Array length mismatch");
 
         for (uint256 i = 0; i < _signatures.length; i++) {

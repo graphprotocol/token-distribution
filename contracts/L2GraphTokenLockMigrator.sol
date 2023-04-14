@@ -33,15 +33,14 @@ contract L2GraphTokenLockMigrator {
 
     /**
      * @notice Constructor for the L2GraphTokenLockMigrator contract
+     * @dev Note the L2GraphTokenLockMigrator can be deployed behind a proxy,
+     * and the constructor for the implementation will only set some immutable
+     * variables.
      * @param _graphToken Address of the L2 GRT token
      * @param _l2Gateway Address of the L2GraphTokenGateway
      * @param _l1GraphToken Address of the L1 GRT token (in L1, no aliasing)
      */
-    constructor(
-        IERC20 _graphToken,
-        ITokenGateway _l2Gateway,
-        address _l1GraphToken
-    ) {
+    constructor(IERC20 _graphToken, ITokenGateway _l2Gateway, address _l1GraphToken) {
         graphToken = _graphToken;
         l2Gateway = _l2Gateway;
         l1GraphToken = _l1GraphToken;
