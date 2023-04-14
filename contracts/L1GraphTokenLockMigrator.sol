@@ -10,7 +10,7 @@ import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
 import { GraphTokenLockWallet } from "./GraphTokenLockWallet.sol";
 import { MinimalProxyFactory } from "./MinimalProxyFactory.sol";
 import { IGraphTokenLock } from "./IGraphTokenLock.sol";
-import { Ownable } from "./Ownable.sol";
+import { Ownable as OwnableInitializable } from "./Ownable.sol";
 import { SafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
@@ -34,7 +34,7 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/Initial
  *
  * See GIP-0046 for more details: https://forum.thegraph.com/t/gip-0046-l2-migration-helpers/4023
  */
-contract L1GraphTokenLockMigrator is Ownable, Initializable, MinimalProxyFactory {
+contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, MinimalProxyFactory {
     using SafeMathUpgradeable for uint256;
 
     /// Address of the L1 GRT token contract
@@ -97,8 +97,13 @@ contract L1GraphTokenLockMigrator is Ownable, Initializable, MinimalProxyFactory
      * @param _l1Gateway Address of the L1GraphTokenGateway contract
      * @param _staking Address of the Staking contract
      */
-    constructor(IERC20 _graphToken, address _l2Implementation, ITokenGateway _l1Gateway, address payable _staking) initializer {
-        Ownable._initialize(msg.sender);
+    constructor(
+        IERC20 _graphToken,
+        address _l2Implementation,
+        ITokenGateway _l1Gateway,
+        address payable _staking
+    ) initializer {
+        OwnableInitializable._initialize(msg.sender);
         graphToken = _graphToken;
         l2Implementation = _l2Implementation;
         l1Gateway = _l1Gateway;
@@ -112,7 +117,7 @@ contract L1GraphTokenLockMigrator is Ownable, Initializable, MinimalProxyFactory
      * @param _owner Address of the owner of the L1GraphTokenLockMigrator contract
      */
     function initialize(address _owner) external initializer {
-        Ownable._initialize(_owner);
+        OwnableInitializable._initialize(_owner);
     }
 
     /**

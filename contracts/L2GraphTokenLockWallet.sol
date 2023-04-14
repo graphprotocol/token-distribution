@@ -6,7 +6,7 @@ pragma experimental ABIEncoderV2;
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import { GraphTokenLockWallet } from "./GraphTokenLockWallet.sol";
-import { Ownable } from "./Ownable.sol";
+import { Ownable as OwnableInitializable } from "./Ownable.sol";
 import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
 
 /**
@@ -43,7 +43,7 @@ contract L2GraphTokenLockWallet is GraphTokenLockWallet {
         require(!isInitialized, "Already initialized");
         isInitialized = true;
 
-        Ownable._initialize(_walletData.owner);
+        OwnableInitializable._initialize(_walletData.owner);
         beneficiary = _walletData.beneficiary;
         token = IERC20(_token);
 

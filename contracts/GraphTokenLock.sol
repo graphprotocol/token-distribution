@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import "./Ownable.sol";
+import { Ownable as OwnableInitializable } from "./Ownable.sol";
 import "./MathUtils.sol";
 import "./IGraphTokenLock.sol";
 
@@ -27,7 +27,7 @@ import "./IGraphTokenLock.sol";
  * perform the first release on the configured time. After that it will continue with the
  * default schedule.
  */
-abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
+abstract contract GraphTokenLock is OwnableInitializable, IGraphTokenLock {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -119,7 +119,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
 
         isInitialized = true;
 
-        Ownable._initialize(_owner);
+        OwnableInitializable._initialize(_owner);
         beneficiary = _beneficiary;
         token = IERC20(_token);
 

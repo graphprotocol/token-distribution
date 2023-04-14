@@ -15,7 +15,7 @@ import "./GraphTokenLock.sol";
 contract GraphTokenLockSimple is GraphTokenLock {
     // Constructor
     constructor() {
-        Ownable._initialize(msg.sender);
+        OwnableInitializable._initialize(msg.sender);
     }
 
     // Initializer
