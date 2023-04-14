@@ -8,6 +8,7 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import { ICallhookReceiver } from "./ICallhookReceiver.sol";
 import { GraphTokenLockManager } from "./GraphTokenLockManager.sol";
+import { L2GraphTokenLockWallet } from "./L2GraphTokenLockWallet.sol";
 
 /**
  * @title L2GraphTokenLockManager
@@ -148,8 +149,8 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
      */
     function _encodeInitializer(MigratedWalletData memory _walletData) internal view returns (bytes memory) {
         return
-            abi.encodeWithSignature(
-                "initializeFromL1(address,address,(address,address,address,uint256,uint256,uint256))",
+            abi.encodeWithSelector(
+                L2GraphTokenLockWallet.initializeFromL1.selector,
                 address(this),
                 address(_token),
                 _walletData

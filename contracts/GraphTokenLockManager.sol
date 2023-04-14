@@ -11,6 +11,7 @@ import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./MinimalProxyFactory.sol";
 import "./IGraphTokenLockManager.sol";
+import { GraphTokenLockWallet } from "./GraphTokenLockWallet.sol";
 
 /**
  * @title GraphTokenLockManager
@@ -107,8 +108,8 @@ contract GraphTokenLockManager is Ownable, MinimalProxyFactory, IGraphTokenLockM
         require(_token.balanceOf(address(this)) >= _managedAmount, "Not enough tokens to create lock");
 
         // Create contract using a minimal proxy and call initializer
-        bytes memory initializer = abi.encodeWithSignature(
-            "initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint8)",
+        bytes memory initializer = abi.encodeWithSelector(
+            GraphTokenLockWallet.initialize.selector,
             address(this),
             _owner,
             _beneficiary,
