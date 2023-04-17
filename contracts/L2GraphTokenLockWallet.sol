@@ -27,6 +27,9 @@ import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
  * funds in L2 until the end of the vesting timeline, but they can allow withdrawing
  * funds back to L1 using the L2GraphTokenLockMigrator contract.
  *
+ * Note that surplusAmount and releasedAmount in L2 will be skewed for migrated wallets,
+ * so releasing surplus tokens might also only be possible by bridging tokens back to L1.
+ *
  * NOTE: Contracts used as target must have its function signatures checked to avoid collisions
  * with any of this contract functions.
  * Beneficiaries need to approve the use of the tokens to the protocol contracts. For convenience
