@@ -6,7 +6,6 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./GraphTokenLock.sol";
 import "./IGraphTokenLockManager.sol";
@@ -32,14 +31,11 @@ import "./IGraphTokenLockManager.sol";
  */
 contract GraphTokenLockWallet is GraphTokenLock {
     using SafeMath for uint256;
-    using SafeERC20 for IERC20;
 
     // -- State --
 
     IGraphTokenLockManager public manager;
     uint256 public usedAmount;
-
-    uint256 private constant MAX_UINT256 = 2 ** 256 - 1;
 
     // -- Events --
 
@@ -109,7 +105,8 @@ contract GraphTokenLockWallet is GraphTokenLock {
     function approveProtocol() external onlyBeneficiary {
         address[] memory dstList = manager.getTokenDestinations();
         for (uint256 i = 0; i < dstList.length; i++) {
-            token.safeApprove(dstList[i], MAX_UINT256);
+            // Note this is only safe because we are using the max uint256 value
+            token.approve(dstList[i], type(uint256).max);
         }
         emit TokenDestinationsApproved();
     }
@@ -121,7 +118,8 @@ contract GraphTokenLockWallet is GraphTokenLock {
     function revokeProtocol() external onlyBeneficiary {
         address[] memory dstList = manager.getTokenDestinations();
         for (uint256 i = 0; i < dstList.length; i++) {
-            token.safeApprove(dstList[i], 0);
+            // Note this is only safe cause we're using 0 as the amount
+            token.approve(dstList[i], 0);
         }
         emit TokenDestinationsRevoked();
     }
