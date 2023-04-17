@@ -63,11 +63,10 @@ contract L2GraphTokenLockMigrator {
         require(_amount != 0, "ZERO_AMOUNT");
 
         graphToken.transferFrom(msg.sender, address(this), _amount);
-        // Send the tokens with a message through the L1GraphTokenGateway to the L2GraphTokenLockManager
         graphToken.approve(address(l2Gateway), _amount);
 
         emit LockedFundsSentToL1(l1Wallet, msg.sender, address(manager), _amount);
-
+        // Send the tokens through the L2GraphTokenGateway to the L1 wallet counterpart
         return l2Gateway.outboundTransfer(l1GraphToken, l1Wallet, _amount, 0, 0, "");
     }
 }
