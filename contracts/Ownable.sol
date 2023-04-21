@@ -15,8 +15,13 @@ pragma solidity ^0.7.3;
  * the owner.
  */
 contract Ownable {
+    /// @dev Owner of the contract, can be retrieved with the public owner() function
     address private _owner;
+    /// @dev Since upgradeable contracts might inherit this, we add a storage gap
+    /// to allow adding variables here without breaking the proxy storage layout
+    uint256[50] private __gap;
 
+    /// @dev Emitted when ownership of the contract is transferred
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     /**
