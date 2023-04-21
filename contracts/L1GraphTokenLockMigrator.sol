@@ -254,6 +254,7 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
         }
 
         if (migratedWalletAddress[msg.sender] == address(0)) {
+            require(wallet.endTime() >= block.timestamp, "FULLY_VESTED_USE_MANUAL_ADDRESS");
             address newAddress = getDeploymentAddress(keccak256(encodedData), l2Implementation, l2Manager);
             migratedWalletAddress[msg.sender] = newAddress;
             emit MigratedWalletAddressSet(msg.sender, newAddress);

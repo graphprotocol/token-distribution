@@ -18,6 +18,7 @@ import { Staking__factory } from '@graphprotocol/contracts/dist/types/factories/
 import { defaultInitArgs, Revocability, TokenLockParameters } from './config'
 import { getAccounts, getContract, toGRT, Account, toBN } from './network'
 import { defaultAbiCoder, hexValue, keccak256, parseEther } from 'ethers/lib/utils'
+import { advanceTimeAndBlock } from './network'
 
 const { AddressZero } = constants
 
@@ -547,6 +548,42 @@ describe('L1GraphTokenLockMigrator', () => {
           .depositToL2Locked(amountToSend, l2Owner.address, maxGas, gasPrice, maxSubmissionCost),
       ).to.be.revertedWith('INVALID_BENEFICIARY')
     })
+    it('rejects first calls from a token lock that is fully-vested', async function () {
+      initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
+      initArgs.startTime = initArgs.endTime - 1000
+
+      tokenLock = await initWithArgs(initArgs)
+      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      await tokenLock.connect(beneficiary.signer).approveProtocol()
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const amountToSend = toGRT('1000')
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx).to.be.revertedWith('FULLY_VESTED_USE_MANUAL_ADDRESS')
+    })
+    it('accepts calls from a fully-vested wallet if it had been called before', async function () {
+      // End time two minutes in the future
+      initArgs.endTime = Math.round(+new Date(+new Date() + 120000) / 1000)
+      initArgs.startTime = initArgs.endTime - 1000
+
+      tokenLock = await initWithArgs(initArgs)
+      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      await tokenLock.connect(beneficiary.signer).acceptLock()
+      await tokenLock.connect(beneficiary.signer).approveProtocol()
+      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.mul(2) })
+      const amountToSend = toGRT('1000')
+      await lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
+
+      await advanceTimeAndBlock(200)
+      const tx = lockAsMigrator
+        .connect(beneficiary.signer)
+        .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
+      await expect(tx).emit(migrator, 'LockedFundsSentToL2')
+    })
   })
   describe('Setting an L2 wallet address manually', function () {
     it('sets the migratedWalletAddress for a token lock that is fully-vested', async function () {
@@ -580,7 +617,8 @@ describe('L1GraphTokenLockMigrator', () => {
       ).to.be.revertedWith('ALREADY_MIGRATED')
     })
     it('reverts for a wallet that has previously called depositToL2Locked', async function () {
-      initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
+      // End time two minutes in the future
+      initArgs.endTime = Math.round(+new Date(+new Date() + 120000) / 1000)
       initArgs.startTime = initArgs.endTime - 1000
 
       tokenLock = await initWithArgs(initArgs)
@@ -593,6 +631,7 @@ describe('L1GraphTokenLockMigrator', () => {
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
 
+      await advanceTimeAndBlock(200)
       await expect(
         lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
       ).to.be.revertedWith('ALREADY_MIGRATED')
