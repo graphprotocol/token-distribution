@@ -51,9 +51,8 @@ contract L2GraphTokenLockMigrator {
      * The GRT will be sent to L1 and must be claimed using the Arbitrum Outbox on L1
      * after the standard Arbitrum withdrawal period (7 days).
      * @param _amount Amount of GRT to withdraw
-     * @return bytes The ID of the L2-L1 message returned by the L2GraphTokenGateway
      */
-    function withdrawToL1Locked(uint256 _amount) external returns (bytes memory) {
+    function withdrawToL1Locked(uint256 _amount) external {
         L2GraphTokenLockWallet wallet = L2GraphTokenLockWallet(msg.sender);
         L2GraphTokenLockManager manager = L2GraphTokenLockManager(address(wallet.manager()));
         require(address(manager) != address(0), "INVALID_SENDER");
@@ -65,8 +64,8 @@ contract L2GraphTokenLockMigrator {
         graphToken.transferFrom(msg.sender, address(this), _amount);
         graphToken.approve(address(l2Gateway), _amount);
 
-        emit LockedFundsSentToL1(l1Wallet, msg.sender, address(manager), _amount);
         // Send the tokens through the L2GraphTokenGateway to the L1 wallet counterpart
-        return l2Gateway.outboundTransfer(l1GraphToken, l1Wallet, _amount, 0, 0, "");
+        l2Gateway.outboundTransfer(l1GraphToken, l1Wallet, _amount, 0, 0, "");
+        emit LockedFundsSentToL1(l1Wallet, msg.sender, address(manager), _amount);
     }
 }
