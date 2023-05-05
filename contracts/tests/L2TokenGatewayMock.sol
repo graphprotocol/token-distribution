@@ -160,7 +160,7 @@ contract L2TokenGatewayMock is Ownable {
     }
 
     /**
-     * @dev Decodes calldata required for migration of tokens.
+     * @dev Decodes calldata required for transfer of tokens to L1.
      * extraData can be left empty
      * @param _data Encoded callhook data
      * @return Sender of the tx

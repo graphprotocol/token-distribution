@@ -8,12 +8,12 @@ import { Address } from "@openzeppelin/contracts/utils/Address.sol";
 /**
  * @title WalletMock: a mock wallet contract for testing purposes
  * @dev For testing only, DO NOT USE IN PRODUCTION.
- * This is used to test L1-L2 migration helpers and to create scenarios
- * where an invalid wallet calls the migrator, e.g. a wallet that has an invalid
+ * This is used to test L1-L2 transfer tools and to create scenarios
+ * where an invalid wallet calls the transfer tool, e.g. a wallet that has an invalid
  * manager, or a wallet that has not been initialized.
  */
 contract WalletMock {
-    /// Target contract for the fallback function (usually a migrator contract)
+    /// Target contract for the fallback function (usually a transfer tool contract)
     address public immutable target;
     /// Address of the GRT (mock) token
     address public immutable token;
@@ -45,7 +45,7 @@ contract WalletMock {
     /**
      * @notice Fallback function
      * @dev This function calls the target contract with the data sent to this contract.
-     * This is used to test the L1-L2 migration helpers.
+     * This is used to test the L1-L2 transfer tool.
      */
     fallback() external payable {
         // Call function with data

@@ -21,7 +21,7 @@ const { AddressZero } = constants
 // Fixture
 const setupTest = deployments.createFixture(async ({ deployments }) => {
   const { deploy } = deployments
-  const [deployer, , l1MigratorMock, gateway] = await getAccounts()
+  const [deployer, , l1TransferToolMock, gateway] = await getAccounts()
 
   // Start from a fresh snapshot
   await deployments.fixture([])
@@ -42,7 +42,7 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   // Deploy token lock manager
   await deploy('L2GraphTokenLockManager', {
     from: deployer.address,
-    args: [grt.address, tokenLockWallet.address, gateway.address, l1MigratorMock.address],
+    args: [grt.address, tokenLockWallet.address, gateway.address, l1TransferToolMock.address],
   })
   const tokenLockManager = await getContract('L2GraphTokenLockManager')
 
@@ -70,7 +70,7 @@ async function authProtocolFunctions(tokenLockManager: L2GraphTokenLockManager, 
 describe('L2GraphTokenLockManager', () => {
   let deployer: Account
   let beneficiary: Account
-  let l1MigratorMock: Account
+  let l1TransferToolMock: Account
   let gateway: Account
   let l1TokenLock: Account
 
@@ -101,7 +101,7 @@ describe('L2GraphTokenLockManager', () => {
   }
 
   before(async function () {
-    ;[deployer, beneficiary, l1MigratorMock, gateway, l1TokenLock] = await getAccounts()
+    ;[deployer, beneficiary, l1TransferToolMock, gateway, l1TokenLock] = await getAccounts()
   })
 
   beforeEach(async () => {
@@ -234,7 +234,7 @@ describe('L2GraphTokenLockManager', () => {
       // Call onTokenTransfer from the gateway:
       const tx = tokenLockManager
         .connect(gateway.signer)
-        .onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+        .onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
 
       await expect(tx)
         .emit(tokenLockManager, 'TokenLockCreatedFromL1')
@@ -316,7 +316,7 @@ describe('L2GraphTokenLockManager', () => {
       // Call onTokenTransfer from the gateway:
       const tx = tokenLockManager
         .connect(gateway.signer)
-        .onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+        .onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
 
       await expect(tx)
         .emit(tokenLockManager, 'TokenLockCreatedFromL1')
@@ -341,7 +341,7 @@ describe('L2GraphTokenLockManager', () => {
       // Call onTokenTransfer from the gateway again:
       const tx2 = tokenLockManager
         .connect(gateway.signer)
-        .onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+        .onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
       // This tx should not emit a TokenLockCreatedFromL1 event
       await expect(tx2).to.not.emit(tokenLockManager, 'TokenLockCreatedFromL1')
       // But it should transfer the tokens to the token lock wallet
@@ -375,7 +375,7 @@ describe('L2GraphTokenLockManager', () => {
       const transferredAmount = initArgs.managedAmount.sub(toGRT('100000'))
 
       // Call onTokenTransfer from the gateway:
-      await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+      await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
 
       // Check that the token lock wallet was created with the correct parameters
       const tokenLock = (await ethers.getContractAt(
@@ -427,7 +427,7 @@ describe('L2GraphTokenLockManager', () => {
       const transferredAmount = initArgs.managedAmount.sub(toGRT('100000'))
 
       // Call onTokenTransfer from the gateway:
-      await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1MigratorMock.address, transferredAmount, data)
+      await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
 
       // Check that the token lock wallet was created with the correct parameters
       const tokenLock = (await ethers.getContractAt(

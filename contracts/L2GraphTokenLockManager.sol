@@ -18,10 +18,10 @@ import { L2GraphTokenLockWallet } from "./L2GraphTokenLockWallet.sol";
  * This contract receives funds to make the process of creating TokenLockWallet contracts
  * easier by distributing them the initial tokens to be managed.
  *
- * In particular, this L2 variant is designed to receive migrated token lock wallets from L1,
- * through the GRT bridge. These migrated wallets will not allow releasing funds in L2 until
+ * In particular, this L2 variant is designed to receive token lock wallets from L1,
+ * through the GRT bridge. These transferred wallets will not allow releasing funds in L2 until
  * the end of the vesting timeline, but they can allow withdrawing funds back to L1 using
- * the L2GraphTokenLockMigrator contract.
+ * the L2GraphTokenLockTransferTool contract.
  *
  * The owner can setup a list of token destinations that will be used by TokenLock contracts to
  * approve the pulling of funds, this way in can be guaranteed that only protocol contracts
@@ -30,9 +30,9 @@ import { L2GraphTokenLockWallet } from "./L2GraphTokenLockWallet.sol";
 contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
     using SafeERC20 for IERC20;
 
-    /// @dev Struct to hold the data of a migrated wallet; this is
+    /// @dev Struct to hold the data of a transferred wallet; this is
     /// the data that must be encoded in L1 to send a wallet to L2.
-    struct MigratedWalletData {
+    struct TransferredWalletData {
         address l1Address;
         address owner;
         address beneficiary;
@@ -43,12 +43,12 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
 
     /// Address of the L2GraphTokenGateway
     address public immutable l2Gateway;
-    /// Address of the L1 migrator contract (in L1, no aliasing)
-    address public immutable l1Migrator;
-    /// Mapping of each L1 wallet to its L2 wallet counterpart (populated when each wallet is migrated)
+    /// Address of the L1 transfer tool contract (in L1, no aliasing)
+    address public immutable l1TransferTool;
+    /// Mapping of each L1 wallet to its L2 wallet counterpart (populated when each wallet is received)
     /// L1 address => L2 address
     mapping(address => address) public l1WalletToL2Wallet;
-    /// Mapping of each L2 wallet to its L1 wallet counterpart (populated when each wallet is migrated)
+    /// Mapping of each L2 wallet to its L1 wallet counterpart (populated when each wallet is received)
     /// L2 address => L1 address
     mapping(address => address) public l2WalletToL1Wallet;
 
@@ -80,32 +80,32 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
      * @param _graphToken Address of the L2 GRT token contract
      * @param _masterCopy Address of the master copy of the L2GraphTokenLockWallet implementation
      * @param _l2Gateway Address of the L2GraphTokenGateway contract
-     * @param _l1Migrator Address of the L1 migrator contract (in L1, without aliasing)
+     * @param _l1TransferTool Address of the L1 transfer tool contract (in L1, without aliasing)
      */
     constructor(
         IERC20 _graphToken,
         address _masterCopy,
         address _l2Gateway,
-        address _l1Migrator
+        address _l1TransferTool
     ) GraphTokenLockManager(_graphToken, _masterCopy) {
         l2Gateway = _l2Gateway;
-        l1Migrator = _l1Migrator;
+        l1TransferTool = _l1TransferTool;
     }
 
     /**
      * @notice This function is called by the L2GraphTokenGateway when tokens are sent from L1.
      * @dev This function will create a new wallet if it doesn't exist yet, or send the tokens to
      * the existing wallet if it does.
-     * @param _from Address of the sender in L1, which must be the L1GraphTokenLockMigrator
+     * @param _from Address of the sender in L1, which must be the L1GraphTokenLockTransferTool
      * @param _amount Amount of tokens received
-     * @param _data Encoded data of the migrated wallet, which must be an ABI-encoded MigratedWalletData struct
+     * @param _data Encoded data of the transferred wallet, which must be an ABI-encoded TransferredWalletData struct
      */
     function onTokenTransfer(address _from, uint256 _amount, bytes calldata _data) external override onlyL2Gateway {
-        require(_from == l1Migrator, "ONLY_MIGRATOR");
-        MigratedWalletData memory walletData = abi.decode(_data, (MigratedWalletData));
+        require(_from == l1TransferTool, "ONLY_TRANSFER_TOOL");
+        TransferredWalletData memory walletData = abi.decode(_data, (TransferredWalletData));
 
         if (l1WalletToL2Wallet[walletData.l1Address] != address(0)) {
-            // If the wallet was already migrated, just send the tokens to the L2 address
+            // If the wallet was already received, just send the tokens to the L2 address
             _token.safeTransfer(l1WalletToL2Wallet[walletData.l1Address], _amount);
         } else {
             // Create contract using a minimal proxy and call initializer
@@ -136,7 +136,7 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
      * @return Hash of the initialization calldata
      * @return Address of the created contract
      */
-    function _deployFromL1(bytes32 _salt, MigratedWalletData memory _walletData) internal returns (bytes32, address) {
+    function _deployFromL1(bytes32 _salt, TransferredWalletData memory _walletData) internal returns (bytes32, address) {
         bytes memory initializer = _encodeInitializer(_walletData);
         address contractAddress = _deployProxy2(_salt, masterCopy, initializer);
         return (keccak256(initializer), contractAddress);
@@ -147,7 +147,7 @@ contract L2GraphTokenLockManager is GraphTokenLockManager, ICallhookReceiver {
      * @param _walletData Data of the wallet to be created
      * @return Encoded initializer calldata, including the function signature
      */
-    function _encodeInitializer(MigratedWalletData memory _walletData) internal view returns (bytes memory) {
+    function _encodeInitializer(TransferredWalletData memory _walletData) internal view returns (bytes memory) {
         return
             abi.encodeWithSelector(
                 L2GraphTokenLockWallet.initializeFromL1.selector,

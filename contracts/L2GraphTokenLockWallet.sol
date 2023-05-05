@@ -23,11 +23,11 @@ import { L2GraphTokenLockManager } from "./L2GraphTokenLockManager.sol";
  * the same configuration can be shared for all the created lock wallet contracts.
  *
  * This L2 variant includes a special initializer so that it can be created from
- * a wallet's data received from L1. These migrated wallets will not allow releasing
+ * a wallet's data received from L1. These transferred wallets will not allow releasing
  * funds in L2 until the end of the vesting timeline, but they can allow withdrawing
- * funds back to L1 using the L2GraphTokenLockMigrator contract.
+ * funds back to L1 using the L2GraphTokenLockTransferTool contract.
  *
- * Note that surplusAmount and releasedAmount in L2 will be skewed for migrated wallets,
+ * Note that surplusAmount and releasedAmount in L2 will be skewed for wallets received from L1,
  * so releasing surplus tokens might also only be possible by bridging tokens back to L1.
  *
  * NOTE: Contracts used as target must have its function signatures checked to avoid collisions
@@ -41,7 +41,7 @@ contract L2GraphTokenLockWallet is GraphTokenLockWallet {
     function initializeFromL1(
         address _manager,
         address _token,
-        L2GraphTokenLockManager.MigratedWalletData calldata _walletData
+        L2GraphTokenLockManager.TransferredWalletData calldata _walletData
     ) external {
         require(!isInitialized, "Already initialized");
         isInitialized = true;

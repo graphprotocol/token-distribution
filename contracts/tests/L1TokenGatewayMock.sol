@@ -146,7 +146,7 @@ contract L1TokenGatewayMock is Ownable {
     }
 
     /**
-     * @notice Decodes calldata required for migration of tokens
+     * @notice Decodes calldata required for transfer of tokens to L2
      * @dev Data must include maxSubmissionCost, extraData can be left empty. When the router
      * sends an outbound message, data also contains the from address, but this mock
      * doesn't consider this case

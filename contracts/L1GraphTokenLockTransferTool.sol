@@ -15,8 +15,8 @@ import { SafeMathUpgradeable } from "@openzeppelin/contracts-upgradeable/math/Sa
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
 
 /**
- * @title L1GraphTokenLockMigrator contract
- * @notice This contract is used to migrate GRT from GraphTokenLockWallets
+ * @title L1GraphTokenLockTransferTool contract
+ * @notice This contract is used to transfer GRT from GraphTokenLockWallets
  * to a counterpart on L2. It is deployed on L1 and will send the GRT through
  * the L1GraphTokenGateway with a callhook to the L2GraphTokenLockManager, including
  * data to create a L2GraphTokenLockWallet on L2.
@@ -29,12 +29,12 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/Initial
  *
  * Since all retryable tickets to send transactions to L2 require ETH for gas, this
  * contract also allows users to deposit ETH to be used for gas on L2, both for
- * the depositToL2Locked calls and for the migration helpers in the Staking contract for
+ * the depositToL2Locked calls and for the transfer tools in the Staking contract for
  * The Graph.
  *
- * See GIP-0046 for more details: https://forum.thegraph.com/t/gip-0046-l2-migration-helpers/4023
+ * See GIP-0046 for more details: https://forum.thegraph.com/t/4023
  */
-contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, MinimalProxyFactory {
+contract L1GraphTokenLockTransferTool is OwnableInitializable, Initializable, MinimalProxyFactory {
     using SafeMathUpgradeable for uint256;
 
     /// Address of the L1 GRT token contract
@@ -51,19 +51,19 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
     /// L2 wallet owner for each L1 wallet owner.
     /// L1 wallet owner => L2 wallet owner
     mapping(address => address) public l2WalletOwner;
-    /// L2 wallet address for each migrated L1 wallet address.
+    /// L2 wallet address for each L1 wallet address.
     /// L1 wallet => L2 wallet
-    mapping(address => address) public migratedWalletAddress;
+    mapping(address => address) public l2WalletAddress;
     /// ETH balance from each token lock, used to pay for L2 gas:
     /// L1 wallet address => ETH balance
     mapping(address => uint256) public tokenLockETHBalances;
     /// L2 beneficiary corresponding to each L1 wallet address.
     /// L1 wallet => L2 beneficiary
-    mapping(address => address) public migratedL2Beneficiary;
-    /// Indicates whether a migrated wallet address for a wallet
+    mapping(address => address) public l2Beneficiary;
+    /// Indicates whether an L2 wallet address for a wallet
     /// has been set manually, in which case it can't call depositToL2Locked.
     /// L1 wallet => bool
-    mapping(address => bool) public migratedWalletAddressSetManually;
+    mapping(address => bool) public l2WalletAddressSetManually;
 
     /// @dev Emitted when the L2 lock manager for an L1 lock manager is set
     event L2LockManagerSet(address indexed l1LockManager, address indexed l2LockManager);
@@ -77,8 +77,8 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
         address l2LockManager,
         uint256 amount
     );
-    /// @dev Emitted when an L2 wallet address is set for a migrated L1 wallet
-    event MigratedWalletAddressSet(address indexed l1Wallet, address indexed l2Wallet);
+    /// @dev Emitted when an L2 wallet address is set for an L1 wallet
+    event L2WalletAddressSet(address indexed l1Wallet, address indexed l2Wallet);
     /// @dev Emitted when ETH is deposited to a token lock's account
     event ETHDeposited(address indexed tokenLock, uint256 amount);
     /// @dev Emitted when ETH is withdrawn from a token lock's account
@@ -87,7 +87,7 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
     event ETHPulled(address indexed tokenLock, uint256 amount);
 
     /**
-     * @notice Construct a new L1GraphTokenLockMigrator contract
+     * @notice Construct a new L1GraphTokenLockTransferTool contract
      * @dev The deployer of the contract will become its owner.
      * Note this contract is meant to be deployed behind a transparent proxy,
      * so this will run at the implementation's storage context; it will set
@@ -111,10 +111,10 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
     }
 
     /**
-     * @notice Initialize the L1GraphTokenLockMigrator contract
+     * @notice Initialize the L1GraphTokenLockTransferTool contract
      * @dev This function will run in the proxy's storage context, so it will
      * set the owner of the proxy contract which can be different from the implementation owner.
-     * @param _owner Address of the owner of the L1GraphTokenLockMigrator contract
+     * @param _owner Address of the owner of the L1GraphTokenLockTransferTool contract
      */
     function initialize(address _owner) external initializer {
         OwnableInitializable._initialize(_owner);
@@ -225,12 +225,12 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
         require(_amount <= graphToken.balanceOf(msg.sender), "INSUFFICIENT_BALANCE");
         require(_amount != 0, "ZERO_AMOUNT");
 
-        if (migratedL2Beneficiary[msg.sender] == address(0)) {
+        if (l2Beneficiary[msg.sender] == address(0)) {
             require(_l2Beneficiary != address(0), "INVALID_BENEFICIARY_ZERO");
             require(!AddressUpgradeable.isContract(_l2Beneficiary), "INVALID_BENEFICIARY_CONTRACT");
-            migratedL2Beneficiary[msg.sender] = _l2Beneficiary;
+            l2Beneficiary[msg.sender] = _l2Beneficiary;
         } else {
-            require(migratedL2Beneficiary[msg.sender] == _l2Beneficiary, "INVALID_BENEFICIARY");
+            require(l2Beneficiary[msg.sender] == _l2Beneficiary, "INVALID_BENEFICIARY");
         }
 
         uint256 expectedEth = _maxSubmissionCost.add(_maxGas.mul(_gasPriceBid));
@@ -242,10 +242,10 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
             address l2Owner = l2WalletOwner[wallet.owner()];
             require(l2Owner != address(0), "L2_OWNER_NOT_SET");
             // Extract all the storage variables from the GraphTokenLockWallet
-            L2GraphTokenLockManager.MigratedWalletData memory data = L2GraphTokenLockManager.MigratedWalletData({
+            L2GraphTokenLockManager.TransferredWalletData memory data = L2GraphTokenLockManager.TransferredWalletData({
                 l1Address: msg.sender,
                 owner: l2Owner,
-                beneficiary: migratedL2Beneficiary[msg.sender],
+                beneficiary: l2Beneficiary[msg.sender],
                 managedAmount: wallet.managedAmount(),
                 startTime: wallet.startTime(),
                 endTime: wallet.endTime()
@@ -253,13 +253,13 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
             encodedData = abi.encode(data);
         }
 
-        if (migratedWalletAddress[msg.sender] == address(0)) {
+        if (l2WalletAddress[msg.sender] == address(0)) {
             require(wallet.endTime() >= block.timestamp, "FULLY_VESTED_USE_MANUAL_ADDRESS");
             address newAddress = getDeploymentAddress(keccak256(encodedData), l2Implementation, l2Manager);
-            migratedWalletAddress[msg.sender] = newAddress;
-            emit MigratedWalletAddressSet(msg.sender, newAddress);
+            l2WalletAddress[msg.sender] = newAddress;
+            emit L2WalletAddressSet(msg.sender, newAddress);
         } else {
-            require(!migratedWalletAddressSetManually[msg.sender], "CANT_DEPOSIT_TO_MANUAL_ADDRESS");
+            require(!l2WalletAddressSetManually[msg.sender], "CANT_DEPOSIT_TO_MANUAL_ADDRESS");
         }
 
         graphToken.transferFrom(msg.sender, address(this), _amount);
@@ -277,12 +277,12 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
                 transferData
             );
         }
-        emit LockedFundsSentToL2(msg.sender, migratedWalletAddress[msg.sender], l1Manager, l2Manager, _amount);
+        emit LockedFundsSentToL2(msg.sender, l2WalletAddress[msg.sender], l1Manager, l2Manager, _amount);
     }
 
     /**
      * @notice Manually set the L2 wallet address for a token lock in L1.
-     * This will only work for token locks that have not been migrated to L2 yet, and
+     * This will only work for token locks that have not been initialized in L2 yet, and
      * that are fully vested (endTime < current timestamp).
      * This address can then be used to send stake or delegation to L2 on the Staking contract.
      * After calling this, the vesting lock will NOT be allowed to use depositToL2Locked
@@ -302,14 +302,14 @@ contract L1GraphTokenLockMigrator is OwnableInitializable, Initializable, Minima
         // Check that the wallet is fully vested
         require(wallet.endTime() < block.timestamp, "NOT_FULLY_VESTED");
 
-        // Check that the wallet has not been migrated to L2 yet
-        require(migratedWalletAddress[msg.sender] == address(0), "ALREADY_MIGRATED");
+        // Check that the wallet has not set an L2 wallet yet
+        require(l2WalletAddress[msg.sender] == address(0), "L2_WALLET_ALREADY_SET");
 
         // Check that the L2 address is not zero
         require(_l2Wallet != address(0), "ZERO_ADDRESS");
         // Set the L2 wallet address
-        migratedWalletAddress[msg.sender] = _l2Wallet;
-        migratedWalletAddressSetManually[msg.sender] = true;
-        emit MigratedWalletAddressSet(msg.sender, _l2Wallet);
+        l2WalletAddress[msg.sender] = _l2Wallet;
+        l2WalletAddressSetManually[msg.sender] = true;
+        emit L2WalletAddressSet(msg.sender, _l2Wallet);
     }
 }

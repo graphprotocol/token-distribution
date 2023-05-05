@@ -10,11 +10,11 @@ import { L2GraphTokenLockWallet } from "./L2GraphTokenLockWallet.sol";
 import { ITokenGateway } from "./arbitrum/ITokenGateway.sol";
 
 /**
- * @title L2GraphTokenLockMigrator contract
- * @notice This contract is used to migrate GRT from L2 token lock wallets
+ * @title L2GraphTokenLockTransferTool contract
+ * @notice This contract is used to transfer GRT from L2 token lock wallets
  * back to their L1 counterparts.
  */
-contract L2GraphTokenLockMigrator {
+contract L2GraphTokenLockTransferTool {
     /// Address of the L2 GRT token
     IERC20 public immutable graphToken;
     /// Address of the L2GraphTokenGateway
@@ -31,8 +31,8 @@ contract L2GraphTokenLockMigrator {
     );
 
     /**
-     * @notice Constructor for the L2GraphTokenLockMigrator contract
-     * @dev Note the L2GraphTokenLockMigrator can be deployed behind a proxy,
+     * @notice Constructor for the L2GraphTokenLockTransferTool contract
+     * @dev Note the L2GraphTokenLockTransferTool can be deployed behind a proxy,
      * and the constructor for the implementation will only set some immutable
      * variables.
      * @param _graphToken Address of the L2 GRT token
@@ -57,7 +57,7 @@ contract L2GraphTokenLockMigrator {
         L2GraphTokenLockManager manager = L2GraphTokenLockManager(address(wallet.manager()));
         require(address(manager) != address(0), "INVALID_SENDER");
         address l1Wallet = manager.l2WalletToL1Wallet(msg.sender);
-        require(l1Wallet != address(0), "NOT_MIGRATED");
+        require(l1Wallet != address(0), "NOT_L1_WALLET");
         require(_amount <= graphToken.balanceOf(msg.sender), "INSUFFICIENT_BALANCE");
         require(_amount != 0, "ZERO_AMOUNT");
 

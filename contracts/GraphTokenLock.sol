@@ -319,7 +319,7 @@ abstract contract GraphTokenLock is OwnableInitializable, IGraphTokenLock {
     /**
      * @notice Gets surplus amount in the contract based on outstanding amount to release
      * @dev All funds over outstanding amount is considered surplus that can be withdrawn by beneficiary.
-     * Note this might not be the correct value for migrated wallets (i.e. an L2GraphTokenLockWallet), as the released amount will be
+     * Note this might not be the correct value for wallets transferred to L2 (i.e. an L2GraphTokenLockWallet), as the released amount will be
      * skewed, so the beneficiary might have to bridge back to L1 to release the surplus.
      * @return Amount of tokens considered as surplus
      */

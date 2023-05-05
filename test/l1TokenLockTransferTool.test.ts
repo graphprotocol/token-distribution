@@ -10,9 +10,9 @@ import { GraphTokenLockWallet } from '../build/typechain/contracts/GraphTokenLoc
 import { GraphTokenLockManager } from '../build/typechain/contracts/GraphTokenLockManager'
 import { StakingMock } from '../build/typechain/contracts/StakingMock'
 import { L1TokenGatewayMock } from '../build/typechain/contracts/L1TokenGatewayMock'
-import { L1GraphTokenLockMigrator } from '../build/typechain/contracts/L1GraphTokenLockMigrator'
+import { L1GraphTokenLockTransferTool } from '../build/typechain/contracts/L1GraphTokenLockTransferTool'
 
-import { L1GraphTokenLockMigrator__factory } from '../build/typechain/contracts/factories/L1GraphTokenLockMigrator__factory'
+import { L1GraphTokenLockTransferTool__factory } from '../build/typechain/contracts/factories/L1GraphTokenLockTransferTool__factory'
 import { Staking__factory } from '@graphprotocol/contracts/dist/types/factories/Staking__factory'
 
 import { defaultInitArgs, Revocability, TokenLockParameters } from './config'
@@ -62,13 +62,13 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
   await deploy('L1TokenGatewayMock', { from: deployer.address, args: [] })
   const gateway = await getContract('L1TokenGatewayMock')
 
-  // Deploy migrator using a proxy
-  const migratorFactory = await ethers.getContractFactory('L1GraphTokenLockMigrator')
-  const migrator = (await upgrades.deployProxy(migratorFactory, [deployer.address], {
+  // Deploy transfer tool using a proxy
+  const transferToolFactory = await ethers.getContractFactory('L1GraphTokenLockTransferTool')
+  const transferTool = (await upgrades.deployProxy(transferToolFactory, [deployer.address], {
     kind: 'transparent',
     unsafeAllow: ['state-variable-immutable', 'constructor'],
     constructorArgs: [grt.address, l2LockImplementationMock.address, gateway.address, staking.address],
-  })) as L1GraphTokenLockMigrator
+  })) as L1GraphTokenLockTransferTool
 
   // Fund the manager contract
   await grt.connect(deployer.signer).transfer(tokenLockManager.address, toGRT('100000000'))
@@ -79,24 +79,24 @@ const setupTest = deployments.createFixture(async ({ deployments }) => {
     // tokenLock: tokenLockWallet as GraphTokenLockWallet,
     tokenLockManager: tokenLockManager as GraphTokenLockManager,
     gateway: gateway as L1TokenGatewayMock,
-    migrator: migrator as L1GraphTokenLockMigrator,
+    transferTool: transferTool as L1GraphTokenLockTransferTool,
   }
 })
 
 async function authProtocolFunctions(
   tokenLockManager: GraphTokenLockManager,
   stakingAddress: string,
-  migratorAddress: string,
+  transferToolAddress: string,
 ) {
   await tokenLockManager.setAuthFunctionCall('stake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('unstake(uint256)', stakingAddress)
   await tokenLockManager.setAuthFunctionCall('withdraw()', stakingAddress)
   await tokenLockManager.setAuthFunctionCall(
     'depositToL2Locked(uint256,address,uint256,uint256,uint256)',
-    migratorAddress,
+    transferToolAddress,
   )
-  await tokenLockManager.setAuthFunctionCall('withdrawETH(address,uint256)', migratorAddress)
-  await tokenLockManager.setAuthFunctionCall('setL2WalletAddressManually(address)', migratorAddress)
+  await tokenLockManager.setAuthFunctionCall('withdrawETH(address,uint256)', transferToolAddress)
+  await tokenLockManager.setAuthFunctionCall('setL2WalletAddressManually(address)', transferToolAddress)
 }
 
 // -- Tests --
@@ -106,7 +106,7 @@ const maxGas = toBN('1000000')
 const gasPrice = toBN('10')
 const ticketValue = maxSubmissionCost.add(maxGas.mul(gasPrice))
 
-describe('L1GraphTokenLockMigrator', () => {
+describe('L1GraphTokenLockTransferTool', () => {
   let deployer: Account
   let beneficiary: Account
   let hacker: Account
@@ -120,8 +120,8 @@ describe('L1GraphTokenLockMigrator', () => {
   let tokenLockManager: GraphTokenLockManager
   let staking: StakingMock
   let gateway: L1TokenGatewayMock
-  let migrator: L1GraphTokenLockMigrator
-  let lockAsMigrator: L1GraphTokenLockMigrator
+  let transferTool: L1GraphTokenLockTransferTool
+  let lockAsTransferTool: L1GraphTokenLockTransferTool
 
   let initArgs: TokenLockParameters
 
@@ -148,116 +148,116 @@ describe('L1GraphTokenLockMigrator', () => {
   })
 
   beforeEach(async () => {
-    ;({ grt, tokenLockManager, staking, gateway, migrator } = await setupTest())
+    ;({ grt, tokenLockManager, staking, gateway, transferTool } = await setupTest())
 
     // Setup authorized functions in Manager
-    await authProtocolFunctions(tokenLockManager, staking.address, migrator.address)
+    await authProtocolFunctions(tokenLockManager, staking.address, transferTool.address)
 
     initArgs = defaultInitArgs(deployer, beneficiary, grt, toGRT('35000000'))
     tokenLock = await initWithArgs(initArgs)
 
-    // Use the tokenLock contract as if it were the L1GraphTokenLockMigrator contract
-    lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+    // Use the tokenLock contract as if it were the L1GraphTokenLockTransferTool contract
+    lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
 
-    // Add the migrator and staking contracts as token destinations
-    await tokenLockManager.addTokenDestination(migrator.address)
+    // Add the transfer tool and staking contracts as token destinations
+    await tokenLockManager.addTokenDestination(transferTool.address)
     await tokenLockManager.addTokenDestination(staking.address)
 
     // Approve contracts to pull tokens from the token lock
     await tokenLock.connect(beneficiary.signer).approveProtocol()
-    await migrator.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
-    await migrator.setL2WalletOwner(deployer.address, l2Owner.address)
+    await transferTool.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
+    await transferTool.setL2WalletOwner(deployer.address, l2Owner.address)
   })
 
   describe('Upgrades', function () {
     it('should be upgradeable', async function () {
-      const migratorFactory = await ethers.getContractFactory('L1GraphTokenLockMigrator')
-      migrator = (await upgrades.upgradeProxy(migrator.address, migratorFactory, {
+      const transferToolFactory = await ethers.getContractFactory('L1GraphTokenLockTransferTool')
+      transferTool = (await upgrades.upgradeProxy(transferTool.address, transferToolFactory, {
         kind: 'transparent',
         unsafeAllow: ['state-variable-immutable', 'constructor'],
         constructorArgs: [beneficiary.address, l2LockImplementationMock.address, gateway.address, staking.address],
-      })) as L1GraphTokenLockMigrator
-      expect(await migrator.graphToken()).to.eq(beneficiary.address)
-      migrator = (await upgrades.upgradeProxy(migrator.address, migratorFactory, {
+      })) as L1GraphTokenLockTransferTool
+      expect(await transferTool.graphToken()).to.eq(beneficiary.address)
+      transferTool = (await upgrades.upgradeProxy(transferTool.address, transferToolFactory, {
         kind: 'transparent',
         unsafeAllow: ['state-variable-immutable', 'constructor'],
         constructorArgs: [grt.address, l2LockImplementationMock.address, gateway.address, staking.address],
-      })) as L1GraphTokenLockMigrator
-      expect(await migrator.graphToken()).to.eq(grt.address)
+      })) as L1GraphTokenLockTransferTool
+      expect(await transferTool.graphToken()).to.eq(grt.address)
     })
   })
   describe('Registering L2 managers', function () {
     it('rejects calls from non-owners', async function () {
-      const tx = migrator.connect(beneficiary.signer).setL2LockManager(beneficiary.address, hacker.address)
+      const tx = transferTool.connect(beneficiary.signer).setL2LockManager(beneficiary.address, hacker.address)
       await expect(tx).revertedWith('Ownable: caller is not the owner')
     })
     it('sets the L2 manager for an L1 manager', async function () {
-      await migrator.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
-      expect(await migrator.l2LockManager(tokenLockManager.address)).to.eq(l2ManagerMock.address)
+      await transferTool.setL2LockManager(tokenLockManager.address, l2ManagerMock.address)
+      expect(await transferTool.l2LockManager(tokenLockManager.address)).to.eq(l2ManagerMock.address)
     })
   })
   describe('Registering L2 wallet owners', function () {
     it('rejects calls from non-owners', async function () {
-      const tx = migrator.connect(beneficiary.signer).setL2WalletOwner(beneficiary.address, hacker.address)
+      const tx = transferTool.connect(beneficiary.signer).setL2WalletOwner(beneficiary.address, hacker.address)
       await expect(tx).revertedWith('Ownable: caller is not the owner')
     })
     it('sets the L2 wallet owner for an L1 wallet owner', async function () {
-      await migrator.setL2WalletOwner(hacker.address, l2Owner.address)
-      expect(await migrator.l2WalletOwner(hacker.address)).to.eq(l2Owner.address)
+      await transferTool.setL2WalletOwner(hacker.address, l2Owner.address)
+      expect(await transferTool.l2WalletOwner(hacker.address)).to.eq(l2Owner.address)
     })
   })
   describe('Depositing, withdrawing and pulling ETH', function () {
     it('allows someone to deposit eth into their token lock account', async function () {
-      const tx = migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
-      await expect(tx).emit(migrator, 'ETHDeposited').withArgs(tokenLock.address, ticketValue)
-      expect(await ethers.provider.getBalance(migrator.address)).to.eq(ticketValue)
-      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue)
+      const tx = transferTool.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await expect(tx).emit(transferTool, 'ETHDeposited').withArgs(tokenLock.address, ticketValue)
+      expect(await ethers.provider.getBalance(transferTool.address)).to.eq(ticketValue)
+      expect(await transferTool.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue)
     })
     it('adds to the token lock ETH balance when called a second time', async function () {
-      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
-      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue)
-      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
-      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue.mul(2))
+      await transferTool.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      expect(await transferTool.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue)
+      await transferTool.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      expect(await transferTool.tokenLockETHBalances(tokenLock.address)).to.eq(ticketValue.mul(2))
     })
     it('allows someone to withdraw eth from their token lock account', async function () {
       // We'll withdraw to the "hacker" account so that we don't need to subtract gas
-      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await transferTool.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
       const prevBalance = await ethers.provider.getBalance(hacker.address)
-      const tx = lockAsMigrator.connect(beneficiary.signer).withdrawETH(hacker.address, ticketValue)
-      await expect(tx).emit(migrator, 'ETHWithdrawn').withArgs(tokenLock.address, hacker.address, ticketValue)
-      expect(await ethers.provider.getBalance(migrator.address)).to.eq(0)
-      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(0)
+      const tx = lockAsTransferTool.connect(beneficiary.signer).withdrawETH(hacker.address, ticketValue)
+      await expect(tx).emit(transferTool, 'ETHWithdrawn').withArgs(tokenLock.address, hacker.address, ticketValue)
+      expect(await ethers.provider.getBalance(transferTool.address)).to.eq(0)
+      expect(await transferTool.tokenLockETHBalances(tokenLock.address)).to.eq(0)
       expect(await ethers.provider.getBalance(hacker.address)).to.eq(prevBalance.add(ticketValue))
     })
     it('fails when trying to withdraw 0 eth from a token lock account', async function () {
       // We'll withdraw to the "hacker" account so that we don't need to subtract gas
-      const tx = lockAsMigrator.connect(beneficiary.signer).withdrawETH(hacker.address, BigNumber.from(0))
+      const tx = lockAsTransferTool.connect(beneficiary.signer).withdrawETH(hacker.address, BigNumber.from(0))
       await expect(tx).revertedWith('INVALID_AMOUNT')
     })
     it('allows the Staking contract to pull ETH from the token lock account', async function () {
-      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await transferTool.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
       const prevBalance = parseEther('1')
       await ethers.provider.send('hardhat_setBalance', [staking.address, hexValue(prevBalance)])
       const stakingSigner = await impersonateAccount(staking.address)
-      const tx = migrator.connect(stakingSigner).pullETH(tokenLock.address, ticketValue)
+      const tx = transferTool.connect(stakingSigner).pullETH(tokenLock.address, ticketValue)
       const receipt = await (await tx).wait()
-      await expect(tx).emit(migrator, 'ETHPulled').withArgs(tokenLock.address, ticketValue)
-      expect(await ethers.provider.getBalance(migrator.address)).to.eq(0)
-      expect(await migrator.tokenLockETHBalances(tokenLock.address)).to.eq(0)
+      await expect(tx).emit(transferTool, 'ETHPulled').withArgs(tokenLock.address, ticketValue)
+      expect(await ethers.provider.getBalance(transferTool.address)).to.eq(0)
+      expect(await transferTool.tokenLockETHBalances(tokenLock.address)).to.eq(0)
       expect(await ethers.provider.getBalance(staking.address)).to.eq(
         prevBalance.add(ticketValue).sub(receipt.gasUsed.mul(receipt.effectiveGasPrice)),
       )
     })
     it('does not allow someone else to pull ETH from the token lock account', async function () {
-      await migrator.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
-      const tx = migrator.connect(hacker.signer).pullETH(tokenLock.address, ticketValue)
+      await transferTool.connect(beneficiary.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const tx = transferTool.connect(hacker.signer).pullETH(tokenLock.address, ticketValue)
       await expect(tx).revertedWith('ONLY_STAKING')
     })
   })
   describe('Depositing to L2', function () {
     it('rejects calls if the manager is not registered', async function () {
-      await migrator.setL2LockManager(tokenLockManager.address, AddressZero)
-      const tx = lockAsMigrator
+      await transferTool.setL2LockManager(tokenLockManager.address, AddressZero)
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INVALID_MANAGER')
@@ -267,12 +267,12 @@ describe('L1GraphTokenLockMigrator', () => {
       // "hacker" will be the owner here, and it does not have an L2 owner set
       initArgs = defaultInitArgs(hacker, beneficiary, grt, toGRT('2000000'))
       tokenLock = await initWithArgs(initArgs)
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).acceptLock()
 
       // Good hacker pays for the gas
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
-      const tx = lockAsMigrator
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('L2_OWNER_NOT_SET')
@@ -282,12 +282,12 @@ describe('L1GraphTokenLockMigrator', () => {
       // WalletMock constructor args are: target, token, manager, isInitialized, isAccepted
       await deployments.deploy('WalletMock', {
         from: deployer.address,
-        args: [migrator.address, '0x5c946740441C12510a167B447B7dE565C20b9E3C', tokenLockManager.address, true, true],
+        args: [transferTool.address, '0x5c946740441C12510a167B447B7dE565C20b9E3C', tokenLockManager.address, true, true],
       })
       const wrongTokenWallet = await getContract('WalletMock')
-      const walletAsMigrator = L1GraphTokenLockMigrator__factory.connect(wrongTokenWallet.address, deployer.signer)
+      const walletAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(wrongTokenWallet.address, deployer.signer)
 
-      const tx = walletAsMigrator
+      const tx = walletAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INVALID_TOKEN')
@@ -297,12 +297,12 @@ describe('L1GraphTokenLockMigrator', () => {
       // WalletMock constructor args are: target, token, manager, isInitialized, isAccepted
       await deployments.deploy('WalletMock', {
         from: deployer.address,
-        args: [migrator.address, grt.address, tokenLockManager.address, false, true],
+        args: [transferTool.address, grt.address, tokenLockManager.address, false, true],
       })
       const uninitWallet = await getContract('WalletMock')
-      const walletAsMigrator = L1GraphTokenLockMigrator__factory.connect(uninitWallet.address, deployer.signer)
+      const walletAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(uninitWallet.address, deployer.signer)
 
-      const tx = walletAsMigrator
+      const tx = walletAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('!INITIALIZED')
@@ -312,9 +312,9 @@ describe('L1GraphTokenLockMigrator', () => {
       tokenLock = await initWithArgs(initArgs)
 
       await tokenLock.connect(beneficiary.signer).acceptLock()
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).approveProtocol()
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('10000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('REVOCABLE')
@@ -322,7 +322,7 @@ describe('L1GraphTokenLockMigrator', () => {
     it('rejects calls if the wallet does not have enough tokens', async function () {
       await tokenLock.connect(beneficiary.signer).acceptLock()
 
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('35000001'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INSUFFICIENT_BALANCE')
@@ -330,7 +330,7 @@ describe('L1GraphTokenLockMigrator', () => {
     it('rejects calls if the amount is zero', async function () {
       await tokenLock.connect(beneficiary.signer).acceptLock()
 
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('0'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('ZERO_AMOUNT')
@@ -338,14 +338,14 @@ describe('L1GraphTokenLockMigrator', () => {
     it('rejects calls if the wallet does not have a sufficient ETH balance previously deposited', async function () {
       await tokenLock.connect(beneficiary.signer).acceptLock()
 
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('35000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INSUFFICIENT_ETH_BALANCE')
 
       // Try again but with an ETH balance that is insufficient by 1 wei
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.sub(1) })
-      const tx2 = lockAsMigrator
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.sub(1) })
+      const tx2 = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('35000000'), l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx2).revertedWith('INSUFFICIENT_ETH_BALANCE')
@@ -353,7 +353,7 @@ describe('L1GraphTokenLockMigrator', () => {
     it('rejects calls if the L2 beneficiary is zero', async function () {
       await tokenLock.connect(beneficiary.signer).acceptLock()
 
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('10000000'), AddressZero, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INVALID_BENEFICIARY_ZERO')
@@ -361,7 +361,7 @@ describe('L1GraphTokenLockMigrator', () => {
     it('rejects calls if the L2 beneficiary is a contract', async function () {
       await tokenLock.connect(beneficiary.signer).acceptLock()
 
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(toGRT('10000000'), staking.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).revertedWith('INVALID_BENEFICIARY_CONTRACT')
@@ -383,7 +383,7 @@ describe('L1GraphTokenLockMigrator', () => {
           ],
         ],
       )
-      const expectedL2Address = await migrator.getDeploymentAddress(
+      const expectedL2Address = await transferTool.getDeploymentAddress(
         keccak256(expectedWalletData),
         l2LockImplementationMock.address,
         l2ManagerMock.address,
@@ -391,21 +391,21 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const expectedOutboundCalldata = await gateway.getOutboundCalldata(
         grt.address,
-        migrator.address,
+        transferTool.address,
         l2ManagerMock.address,
         amountToSend,
         expectedWalletData,
       )
 
       // Good hacker pays for the gas
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
-      const tx = lockAsMigrator
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx)
-        .emit(migrator, 'LockedFundsSentToL2')
+        .emit(transferTool, 'LockedFundsSentToL2')
         .withArgs(
-          lockAsMigrator.address,
+          lockAsTransferTool.address,
           expectedL2Address,
           tokenLockManager.address,
           l2ManagerMock.address,
@@ -414,7 +414,7 @@ describe('L1GraphTokenLockMigrator', () => {
       // Check the events emitted from the mock gateway
       await expect(tx)
         .emit(gateway, 'FakeTxToL2')
-        .withArgs(migrator.address, ticketValue, maxGas, gasPrice, maxSubmissionCost, expectedOutboundCalldata)
+        .withArgs(transferTool.address, ticketValue, maxGas, gasPrice, maxSubmissionCost, expectedOutboundCalldata)
       // and check that the right amount of funds have been pulled from the token lock
       expect(await grt.balanceOf(tokenLock.address)).to.equal(initArgs.managedAmount.sub(amountToSend))
     })
@@ -435,7 +435,7 @@ describe('L1GraphTokenLockMigrator', () => {
           ],
         ],
       )
-      const expectedL2Address = await migrator.getDeploymentAddress(
+      const expectedL2Address = await transferTool.getDeploymentAddress(
         keccak256(expectedWalletData),
         l2LockImplementationMock.address,
         l2ManagerMock.address,
@@ -443,25 +443,25 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const expectedOutboundCalldata = await gateway.getOutboundCalldata(
         grt.address,
-        migrator.address,
+        transferTool.address,
         l2ManagerMock.address,
         amountToSend,
         expectedWalletData,
       )
 
       // Good hacker pays for the gas
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.mul(2) })
-      await lockAsMigrator
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.mul(2) })
+      await lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       // Call again
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx)
-        .emit(migrator, 'LockedFundsSentToL2')
+        .emit(transferTool, 'LockedFundsSentToL2')
         .withArgs(
-          lockAsMigrator.address,
+          lockAsTransferTool.address,
           expectedL2Address,
           tokenLockManager.address,
           l2ManagerMock.address,
@@ -470,7 +470,7 @@ describe('L1GraphTokenLockMigrator', () => {
       // Check the events emitted from the mock gateway
       await expect(tx)
         .emit(gateway, 'FakeTxToL2')
-        .withArgs(migrator.address, ticketValue, maxGas, gasPrice, maxSubmissionCost, expectedOutboundCalldata)
+        .withArgs(transferTool.address, ticketValue, maxGas, gasPrice, maxSubmissionCost, expectedOutboundCalldata)
       // and check that the right amount of funds have been pulled from the token lock
       expect(await grt.balanceOf(tokenLock.address)).to.equal(initArgs.managedAmount.sub(amountToSend.mul(2)))
     })
@@ -497,7 +497,7 @@ describe('L1GraphTokenLockMigrator', () => {
           ],
         ],
       )
-      const expectedL2Address = await migrator.getDeploymentAddress(
+      const expectedL2Address = await transferTool.getDeploymentAddress(
         keccak256(expectedWalletData),
         l2LockImplementationMock.address,
         l2ManagerMock.address,
@@ -505,21 +505,21 @@ describe('L1GraphTokenLockMigrator', () => {
 
       const expectedOutboundCalldata = await gateway.getOutboundCalldata(
         grt.address,
-        migrator.address,
+        transferTool.address,
         l2ManagerMock.address,
         amountToSend,
         expectedWalletData,
       )
 
       // Good hacker pays for the gas
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
-      const tx = lockAsMigrator
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx)
-        .emit(migrator, 'LockedFundsSentToL2')
+        .emit(transferTool, 'LockedFundsSentToL2')
         .withArgs(
-          lockAsMigrator.address,
+          lockAsTransferTool.address,
           expectedL2Address,
           tokenLockManager.address,
           l2ManagerMock.address,
@@ -528,7 +528,7 @@ describe('L1GraphTokenLockMigrator', () => {
       // Check the events emitted from the mock gateway
       await expect(tx)
         .emit(gateway, 'FakeTxToL2')
-        .withArgs(migrator.address, ticketValue, maxGas, gasPrice, maxSubmissionCost, expectedOutboundCalldata)
+        .withArgs(transferTool.address, ticketValue, maxGas, gasPrice, maxSubmissionCost, expectedOutboundCalldata)
       // and check that the right amount of funds have been pulled from the token lock
       expect(await grt.balanceOf(tokenLock.address)).to.equal(initArgs.managedAmount.sub(amountToSend).sub(stakeAmount))
     })
@@ -537,13 +537,13 @@ describe('L1GraphTokenLockMigrator', () => {
       const amountToSend = toGRT('1000')
 
       // Good hacker pays for the gas
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
-      await lockAsMigrator
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       // Call again
       await expect(
-        lockAsMigrator
+        lockAsTransferTool
           .connect(beneficiary.signer)
           .depositToL2Locked(amountToSend, l2Owner.address, maxGas, gasPrice, maxSubmissionCost),
       ).to.be.revertedWith('INVALID_BENEFICIARY')
@@ -553,12 +553,12 @@ describe('L1GraphTokenLockMigrator', () => {
       initArgs.startTime = initArgs.endTime - 1000
 
       tokenLock = await initWithArgs(initArgs)
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).acceptLock()
       await tokenLock.connect(beneficiary.signer).approveProtocol()
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
       const amountToSend = toGRT('1000')
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
       await expect(tx).to.be.revertedWith('FULLY_VESTED_USE_MANUAL_ADDRESS')
@@ -569,38 +569,38 @@ describe('L1GraphTokenLockMigrator', () => {
       initArgs.startTime = initArgs.endTime - 1000
 
       tokenLock = await initWithArgs(initArgs)
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).acceptLock()
       await tokenLock.connect(beneficiary.signer).approveProtocol()
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.mul(2) })
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue.mul(2) })
       const amountToSend = toGRT('1000')
-      await lockAsMigrator
+      await lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
 
       await advanceTimeAndBlock(200)
-      const tx = lockAsMigrator
+      const tx = lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
-      await expect(tx).emit(migrator, 'LockedFundsSentToL2')
+      await expect(tx).emit(transferTool, 'LockedFundsSentToL2')
     })
   })
   describe('Setting an L2 wallet address manually', function () {
-    it('sets the migratedWalletAddress for a token lock that is fully-vested', async function () {
+    it('sets the l2WalletAddress for a token lock that is fully-vested', async function () {
       initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
       initArgs.startTime = initArgs.endTime - 1000
 
       tokenLock = await initWithArgs(initArgs)
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).acceptLock()
 
-      const tx = await lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
-      await expect(tx).emit(migrator, 'MigratedWalletAddressSet').withArgs(tokenLock.address, l2Beneficiary.address)
-      expect(await migrator.migratedWalletAddress(tokenLock.address)).to.equal(l2Beneficiary.address)
+      const tx = await lockAsTransferTool.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
+      await expect(tx).emit(transferTool, 'L2WalletAddressSet').withArgs(tokenLock.address, l2Beneficiary.address)
+      expect(await transferTool.l2WalletAddress(tokenLock.address)).to.equal(l2Beneficiary.address)
     })
     it('reverts for a wallet that is not fully-vested', async function () {
       await expect(
-        lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
+        lockAsTransferTool.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
       ).to.be.revertedWith('NOT_FULLY_VESTED')
     })
     it('reverts for a wallet that has already had the address set', async function () {
@@ -608,13 +608,13 @@ describe('L1GraphTokenLockMigrator', () => {
       initArgs.startTime = initArgs.endTime - 1000
 
       tokenLock = await initWithArgs(initArgs)
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).acceptLock()
-      await lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
+      await lockAsTransferTool.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
 
       await expect(
-        lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
-      ).to.be.revertedWith('ALREADY_MIGRATED')
+        lockAsTransferTool.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
+      ).to.be.revertedWith('L2_WALLET_ALREADY_SET')
     })
     it('reverts for a wallet that has previously called depositToL2Locked', async function () {
       // End time two minutes in the future
@@ -622,35 +622,35 @@ describe('L1GraphTokenLockMigrator', () => {
       initArgs.startTime = initArgs.endTime - 1000
 
       tokenLock = await initWithArgs(initArgs)
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).acceptLock()
       await tokenLock.connect(beneficiary.signer).approveProtocol()
       const amountToSend = toGRT('1000')
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
-      await lockAsMigrator
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await lockAsTransferTool
         .connect(beneficiary.signer)
         .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost)
 
       await advanceTimeAndBlock(200)
       await expect(
-        lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
-      ).to.be.revertedWith('ALREADY_MIGRATED')
+        lockAsTransferTool.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address),
+      ).to.be.revertedWith('L2_WALLET_ALREADY_SET')
     })
     it('prevents subsequent calls to depositToL2Locked from working', async function () {
       initArgs.endTime = Math.round(+new Date(+new Date() - 120) / 1000)
       initArgs.startTime = initArgs.endTime - 1000
 
       tokenLock = await initWithArgs(initArgs)
-      lockAsMigrator = L1GraphTokenLockMigrator__factory.connect(tokenLock.address, deployer.signer)
+      lockAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(tokenLock.address, deployer.signer)
       await tokenLock.connect(beneficiary.signer).acceptLock()
       await tokenLock.connect(beneficiary.signer).approveProtocol()
       const amountToSend = toGRT('1000')
-      await migrator.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
+      await transferTool.connect(hacker.signer).depositETH(tokenLock.address, { value: ticketValue })
 
-      await lockAsMigrator.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
+      await lockAsTransferTool.connect(beneficiary.signer).setL2WalletAddressManually(l2Beneficiary.address)
 
       await expect(
-        lockAsMigrator
+        lockAsTransferTool
           .connect(beneficiary.signer)
           .depositToL2Locked(amountToSend, l2Beneficiary.address, maxGas, gasPrice, maxSubmissionCost),
       ).to.be.revertedWith('CANT_DEPOSIT_TO_MANUAL_ADDRESS')
