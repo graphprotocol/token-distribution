@@ -6,11 +6,7 @@ pragma experimental ABIEncoderV2;
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IGraphTokenLock {
-    enum Revocability {
-        NotSet,
-        Enabled,
-        Disabled
-    }
+    enum Revocability { NotSet, Enabled, Disabled }
 
     // -- Balances --
 

@@ -107,7 +107,7 @@ contract StakingMock {
         emit StakeDeposited(_indexer, _tokens);
     }
 
-    /**
+        /**
      * @dev Withdraw indexer tokens once the thawing period has passed.
      * @param _indexer Address of indexer to withdraw funds from
      */
