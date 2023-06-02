@@ -1,0 +1,38 @@
+import consola from 'consola'
+import '@nomiclabs/hardhat-ethers'
+import { HardhatRuntimeEnvironment } from 'hardhat/types'
+import { DeployFunction } from 'hardhat-deploy/types'
+
+import { getDeploymentName, promptContractAddress } from './lib/utils'
+
+
+const logger = consola.create({})
+
+const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
+  const { deploy } = hre.deployments
+  const { deployer } = await hre.getNamedAccounts()
+
+  // -- Graph Token --
+
+  // Get the token address we will use
+  const tokenAddress = await promptContractAddress('L2 GRT', logger)
+  if (!tokenAddress) {
+    logger.warn('No token address provided')
+    process.exit(1)
+  }
+
+  // -- L2 Token Lock Manager --
+
+  // Deploy the master copy of GraphTokenLockWallet
+  logger.info('Deploying L2GraphTokenLockWallet master copy...')
+  const masterCopySaveName = await getDeploymentName('L2GraphTokenLockWallet')
+  await deploy(masterCopySaveName, {
+    from: deployer,
+    log: true,
+    contract: 'L2GraphTokenLockWallet',
+  })
+}
+
+func.tags = ['l2-wallet', 'l2']
+
+export default func

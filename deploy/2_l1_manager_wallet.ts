@@ -1,5 +1,4 @@
 import consola from 'consola'
-import inquirer from 'inquirer'
 import { utils } from 'ethers'
 
 import '@nomiclabs/hardhat-ethers'
@@ -8,44 +7,11 @@ import { DeployFunction } from 'hardhat-deploy/types'
 
 import { GraphTokenMock } from '../build/typechain/contracts/GraphTokenMock'
 import { GraphTokenLockManager } from '../build/typechain/contracts/GraphTokenLockManager'
+import { askConfirm, getDeploymentName, promptContractAddress } from './lib/utils'
 
-const { getAddress, parseEther, formatEther } = utils
+const { parseEther, formatEther } = utils
 
 const logger = consola.create({})
-
-const askConfirm = async (message: string) => {
-  const res = await inquirer.prompt({
-    name: 'confirm',
-    type: 'confirm',
-    message,
-  })
-  return res.confirm
-}
-
-const getTokenAddress = async (): Promise<string> => {
-  const res1 = await inquirer.prompt({
-    name: 'token',
-    type: 'input',
-    message: 'What is the GRT token address?',
-  })
-
-  try {
-    return getAddress(res1.token)
-  } catch (err) {
-    logger.error(err)
-    process.exit(1)
-  }
-}
-
-const getDeploymentName = async (defaultName: string): Promise<string> => {
-  const res = await inquirer.prompt({
-    name: 'deployment-name',
-    type: 'input',
-    default: defaultName,
-    message: 'Save deployment as?',
-  })
-  return res['deployment-name']
-}
 
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deploy } = hre.deployments
@@ -54,7 +20,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // -- Graph Token --
 
   // Get the token address we will use
-  const tokenAddress = await getTokenAddress()
+  const tokenAddress = await promptContractAddress('L1 GRT', logger)
   if (!tokenAddress) {
     logger.warn('No token address provided')
     process.exit(1)
@@ -102,6 +68,6 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   }
 }
 
-func.tags = ['manager']
+func.tags = ['manager', 'l1', 'l1-manager', 'l1-wallet']
 
 export default func
