@@ -20,8 +20,6 @@ const l1TransferToolAbi = artifacts.readArtifactSync('L1GraphTokenLockTransferTo
 const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   const { deployer } = await hre.getNamedAccounts()
 
-  // -- Graph Token --
-
   // Get the addresses we will use
   const tokenAddress = await promptContractAddress('L1 GRT', logger)
   if (!tokenAddress) {
@@ -49,8 +47,8 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 
   let owner = await promptContractAddress('owner (optional)', logger)
   if (!owner) {
-    logger.warn('No owner address provided, will use the deployer address as owner')
-    owner = deployer.address
+    owner = deployer
+    logger.warn(`No owner address provided, will use the deployer address as owner: ${owner}`)
   }
   
   // Deploy the L1GraphTokenLockTransferTool with a proxy.
