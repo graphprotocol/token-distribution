@@ -38,6 +38,16 @@ const networkConfigs: NetworkConfig[] = [
   { network: 'rinkeby', chainId: 4 },
   { network: 'goerli', chainId: 5 },
   { network: 'kovan', chainId: 42 },
+  {
+    network: 'arbitrum-one',
+    chainId: 42161,
+    url: 'https://arb1.arbitrum.io/rpc',
+  },
+  {
+    network: 'arbitrum-goerli',
+    chainId: 421613,
+    url: 'https://goerli-rollup.arbitrum.io/rpc',
+  },
 ]
 
 function getAccountMnemonic() {
@@ -136,8 +146,9 @@ const config = {
     },
   },
   etherscan: {
-    url: process.env.ETHERSCAN_API_URL,
+    //url: process.env.ETHERSCAN_API_URL,
     apiKey: process.env.ETHERSCAN_API_KEY,
+    customChains: []
   },
   typechain: {
     outDir: 'build/typechain/contracts',

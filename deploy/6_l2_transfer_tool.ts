@@ -56,7 +56,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   })) as L1GraphTokenLockTransferTool
 
   // Save the deployment
-  const deploymentName = await getDeploymentName('L1GraphTokenLockTransferTool')
+  const deploymentName = await getDeploymentName('L2GraphTokenLockTransferTool')
   await hre.deployments.save(deploymentName, {
     abi: l2TransferToolAbi,
     address: transferTool.address,

@@ -15,7 +15,7 @@ export const askConfirm = async (message: string) => {
   return res.confirm
 }
 
-export const promptContractAddress = async (name: string, logger: Consola): Promise<string> => {
+export const promptContractAddress = async (name: string, logger: Consola): Promise<string|null> => {
   const res1 = await inquirer.prompt({
     name: 'contract',
     type: 'input',
@@ -26,7 +26,7 @@ export const promptContractAddress = async (name: string, logger: Consola): Prom
     return getAddress(res1.contract)
   } catch (err) {
     logger.error(err)
-    process.exit(1)
+    return null
   }
 }
 
