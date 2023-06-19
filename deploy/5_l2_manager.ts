@@ -20,7 +20,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // -- Graph Token --
 
   // Get the token address we will use
-  const tokenAddress = await promptContractAddress('L1 GRT', logger)
+  const tokenAddress = await promptContractAddress('L2 GRT', logger)
   if (!tokenAddress) {
     logger.warn('No token address provided')
     process.exit(1)
@@ -42,6 +42,7 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
   // Get the deployed L2GraphTokenLockWallet master copy address
   const masterCopyDeploy = await hre.deployments.get('L2GraphTokenLockWallet')
 
+  logger.info(`Using L2GraphTokenLockWallet at address: ${masterCopyDeploy.address}`)
   // Deploy the Manager that uses the master copy to clone contracts
   logger.info('Deploying L2GraphTokenLockManager...')
   const managerSaveName = await getDeploymentName('L2GraphTokenLockManager')
@@ -74,6 +75,5 @@ const func: DeployFunction = async function (hre: HardhatRuntimeEnvironment) {
 }
 
 func.tags = ['l2-manager', 'l2']
-func.dependencies = ['l2-wallet']
 
 export default func
