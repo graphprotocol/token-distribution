@@ -83,7 +83,7 @@ contract L1GraphTokenLockTransferTool is OwnableInitializable, Initializable, Mi
     event ETHDeposited(address indexed tokenLock, uint256 amount);
     /// @dev Emitted when ETH is withdrawn from a token lock's account
     event ETHWithdrawn(address indexed tokenLock, address indexed destination, uint256 amount);
-    /// @dev Emitted when ETH is pulled from a token lock's account by the Staking contract
+    /// @dev Emitted when ETH is pulled from a token lock's account by Staking or this tool to pay for an L2 ticket
     event ETHPulled(address indexed tokenLock, uint256 amount);
 
     /**
@@ -277,6 +277,7 @@ contract L1GraphTokenLockTransferTool is OwnableInitializable, Initializable, Mi
                 transferData
             );
         }
+        emit ETHPulled(msg.sender, expectedEth);
         emit LockedFundsSentToL2(msg.sender, l2WalletAddress[msg.sender], l1Manager, l2Manager, _amount);
     }
 
