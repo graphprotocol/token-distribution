@@ -411,6 +411,10 @@ describe('L1GraphTokenLockTransferTool', () => {
           l2ManagerMock.address,
           amountToSend,
         )
+      // Check that the right amount of ETH has been pulled from the token lock's account
+      await expect(tx)
+          .emit(transferTool, 'ETHPulled')
+          .withArgs(tokenLock.address, maxGas.mul(gasPrice).add(maxSubmissionCost))
       // Check the events emitted from the mock gateway
       await expect(tx)
         .emit(gateway, 'FakeTxToL2')
