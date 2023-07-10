@@ -1103,12 +1103,13 @@
     "@repeaterjs/repeater" "^3.0.4"
     tslib "^2.4.0"
 
-"@graphprotocol/contracts@^1.1.0":
-  version "1.17.0"
-  resolved "https://registry.yarnpkg.com/@graphprotocol/contracts/-/contracts-1.17.0.tgz#3bbcbaa855bfbdaf834b2cd4ec24cd8eed9ac4c5"
-  integrity sha512-wA2HfMfn9OieHkXdh5I1NnXJ/Sp5y7EVCA0reab+Vp5mJ8RFtMgObMr45iQqH4i1Ur8BUK/AdWhXUHqKh4YYpw==
+"@graphprotocol/contracts@^5.0.0":
+  version "5.0.0"
+  resolved "https://registry.yarnpkg.com/@graphprotocol/contracts/-/contracts-5.0.0.tgz#b4602c2a4590c40a04238c9645b12e5816d7ef30"
+  integrity sha512-AxTJUz3atFyQSCoCY+YT1NLnrCJjTXsZSXO2lNnZwfTrs/W7Tkw/RJ9f4TWGjvtJ8aIJHS3suWjIWWqBWDR5aQ==
   dependencies:
-    ethers "^5.4.4"
+    console-table-printer "^2.11.1"
+    ethers "^5.6.0"
 
 "@graphql-codegen/core@3.1.0":
   version "3.1.0"
@@ -4672,6 +4673,13 @@ consola@^2.15.0:
   resolved "https://registry.yarnpkg.com/consola/-/consola-2.15.3.tgz#2e11f98d6a4be71ff72e0bdf07bd23e12cb61550"
   integrity sha512-9vAdYbHj6x2fLKC4+oPH0kFzY/orMZyG2Aj+kNylHxKGJ/Ed4dpNyAQYwJOdqO4zdM7XpVHmyejQDcQHrnuXbw==
 
+console-table-printer@^2.11.1:
+  version "2.11.1"
+  resolved "https://registry.yarnpkg.com/console-table-printer/-/console-table-printer-2.11.1.tgz#c2dfe56e6343ea5bcfa3701a4be29fe912dbd9c7"
+  integrity sha512-8LfFpbF/BczoxPwo2oltto5bph8bJkGOATXsg3E9ddMJOGnWJciKHldx2zDj5XIBflaKzPfVCjOTl6tMh7lErg==
+  dependencies:
+    simple-wcswidth "^1.0.1"
+
 constant-case@^3.0.4:
   version "3.0.4"
   resolved "https://registry.yarnpkg.com/constant-case/-/constant-case-3.0.4.tgz#3b84a9aeaf4cf31ec45e6bf5de91bdfb0589faf1"
@@ -6039,7 +6047,7 @@ ethers@^4.0.40:
     uuid "2.0.1"
     xmlhttprequest "1.8.0"
 
-ethers@^5.0.1, ethers@^5.0.18, ethers@^5.0.2, ethers@^5.4.4, ethers@^5.5.2, ethers@^5.7.0, ethers@^5.7.1:
+ethers@^5.0.1, ethers@^5.0.18, ethers@^5.0.2, ethers@^5.5.2, ethers@^5.6.0, ethers@^5.7.0, ethers@^5.7.1:
   version "5.7.2"
   resolved "https://registry.yarnpkg.com/ethers/-/ethers-5.7.2.tgz#3a7deeabbb8c030d4126b24f84e525466145872e"
   integrity sha512-wswUsmWo1aOK8rR7DIKiWSw9DbLWe6x98Jrn8wcTflTVvaXhAMaB5zGAXy0GYQEQp9iO1iSHWVyARQm11zUtyg==
@@ -10598,6 +10606,11 @@ simple-get@^2.7.0:
     decompress-response "^3.3.0"
     once "^1.3.1"
     simple-concat "^1.0.0"
+
+simple-wcswidth@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/simple-wcswidth/-/simple-wcswidth-1.0.1.tgz#8ab18ac0ae342f9d9b629604e54d2aa1ecb018b2"
+  integrity sha512-xMO/8eNREtaROt7tJvWJqHBDTMFN4eiQ5I4JRMuilwfnFcV5W9u7RUkueNkdw0jPqGMX36iCywelS5yilTuOxg==
 
 slash@^1.0.0:
   version "1.0.0"
