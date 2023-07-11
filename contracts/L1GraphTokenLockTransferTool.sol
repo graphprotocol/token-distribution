@@ -85,6 +85,8 @@ contract L1GraphTokenLockTransferTool is OwnableInitializable, Initializable, Mi
     event ETHWithdrawn(address indexed tokenLock, address indexed destination, uint256 amount);
     /// @dev Emitted when ETH is pulled from a token lock's account by Staking or this tool to pay for an L2 ticket
     event ETHPulled(address indexed tokenLock, uint256 amount);
+    /// @dev Emitted when the L2 beneficiary for a partially vested L1 lock is set
+    event L2BeneficiarySet(address indexed l1Wallet, address indexed l2Beneficiary);
 
     /**
      * @notice Construct a new L1GraphTokenLockTransferTool contract
@@ -229,6 +231,7 @@ contract L1GraphTokenLockTransferTool is OwnableInitializable, Initializable, Mi
             require(_l2Beneficiary != address(0), "INVALID_BENEFICIARY_ZERO");
             require(!AddressUpgradeable.isContract(_l2Beneficiary), "INVALID_BENEFICIARY_CONTRACT");
             l2Beneficiary[msg.sender] = _l2Beneficiary;
+            emit L2BeneficiarySet(msg.sender, _l2Beneficiary);
         } else {
             require(l2Beneficiary[msg.sender] == _l2Beneficiary, "INVALID_BENEFICIARY");
         }
