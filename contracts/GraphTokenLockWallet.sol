@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 
 pragma solidity ^0.7.3;
+pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
 import "./GraphTokenLock.sol";
 import "./IGraphTokenLockManager.sol";
@@ -27,17 +27,15 @@ import "./IGraphTokenLockManager.sol";
  * with any of this contract functions.
  * Beneficiaries need to approve the use of the tokens to the protocol contracts. For convenience
  * the maximum amount of tokens is authorized.
+ * Function calls do not forward ETH value so DO NOT SEND ETH TO THIS CONTRACT.
  */
 contract GraphTokenLockWallet is GraphTokenLock {
     using SafeMath for uint256;
-    using SafeERC20 for IERC20;
 
     // -- State --
 
     IGraphTokenLockManager public manager;
     uint256 public usedAmount;
-
-    uint256 private constant MAX_UINT256 = 2**256 - 1;
 
     // -- Events --
 
@@ -88,7 +86,7 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @dev Sets a new manager for this contract
      * @param _newManager Address of the new manager
      */
-    function _setManager(address _newManager) private {
+    function _setManager(address _newManager) internal {
         require(_newManager != address(0), "Manager cannot be empty");
         require(Address.isContract(_newManager), "Manager must be a contract");
 
@@ -107,7 +105,8 @@ contract GraphTokenLockWallet is GraphTokenLock {
     function approveProtocol() external onlyBeneficiary {
         address[] memory dstList = manager.getTokenDestinations();
         for (uint256 i = 0; i < dstList.length; i++) {
-            token.safeApprove(dstList[i], MAX_UINT256);
+            // Note this is only safe because we are using the max uint256 value
+            token.approve(dstList[i], type(uint256).max);
         }
         emit TokenDestinationsApproved();
     }
@@ -119,7 +118,8 @@ contract GraphTokenLockWallet is GraphTokenLock {
     function revokeProtocol() external onlyBeneficiary {
         address[] memory dstList = manager.getTokenDestinations();
         for (uint256 i = 0; i < dstList.length; i++) {
-            token.safeApprove(dstList[i], 0);
+            // Note this is only safe cause we're using 0 as the amount
+            token.approve(dstList[i], 0);
         }
         emit TokenDestinationsRevoked();
     }
@@ -161,9 +161,11 @@ contract GraphTokenLockWallet is GraphTokenLock {
      * @notice Forward authorized contract calls to protocol contracts
      * @dev Fallback function can be called by the beneficiary only if function call is allowed
      */
+    // solhint-disable-next-line no-complex-fallback
     fallback() external payable {
         // Only beneficiary can forward calls
         require(msg.sender == beneficiary, "Unauthorized caller");
+        require(msg.value == 0, "ETH transfers not supported");
 
         // Function call validation
         address _target = manager.getAuthFunctionCallTarget(msg.sig);
@@ -192,5 +194,13 @@ contract GraphTokenLockWallet is GraphTokenLock {
             }
             require(usedAmount <= vestedAmount(), "Cannot use more tokens than vested amount");
         }
+    }
+
+    /**
+     * @notice Receive function that always reverts.
+     * @dev Only included to supress warnings, see https://github.com/ethereum/solidity/issues/10159
+     */
+    receive() external payable {
+        revert("Bad call");
     }
 }

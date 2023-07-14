@@ -7,9 +7,11 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 import "@openzeppelin/contracts/utils/EnumerableSet.sol";
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
 
 import "./MinimalProxyFactory.sol";
 import "./IGraphTokenLockManager.sol";
+import { GraphTokenLockWallet } from "./GraphTokenLockWallet.sol";
 
 /**
  * @title GraphTokenLockManager
@@ -23,7 +25,7 @@ import "./IGraphTokenLockManager.sol";
  * approve the pulling of funds, this way in can be guaranteed that only protocol contracts
  * will manipulate users funds.
  */
-contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
+contract GraphTokenLockManager is Ownable, MinimalProxyFactory, IGraphTokenLockManager {
     using SafeERC20 for IERC20;
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -33,7 +35,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
     EnumerableSet.AddressSet private _tokenDestinations;
 
     address public masterCopy;
-    IERC20 private _token;
+    IERC20 internal _token;
 
     // -- Events --
 
@@ -106,8 +108,8 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
         require(_token.balanceOf(address(this)) >= _managedAmount, "Not enough tokens to create lock");
 
         // Create contract using a minimal proxy and call initializer
-        bytes memory initializer = abi.encodeWithSignature(
-            "initialize(address,address,address,address,uint256,uint256,uint256,uint256,uint256,uint256,uint8)",
+        bytes memory initializer = abi.encodeWithSelector(
+            GraphTokenLockWallet.initialize.selector,
             address(this),
             _owner,
             _beneficiary,
@@ -245,11 +247,10 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
      * @param _signatures Function signatures
      * @param _targets Address of the destination contract to call
      */
-    function setAuthFunctionCallMany(string[] calldata _signatures, address[] calldata _targets)
-        external
-        override
-        onlyOwner
-    {
+    function setAuthFunctionCallMany(
+        string[] calldata _signatures,
+        address[] calldata _targets
+    ) external override onlyOwner {
         require(_signatures.length == _targets.length, "Array length mismatch");
 
         for (uint256 i = 0; i < _signatures.length; i++) {
@@ -309,7 +310,7 @@ contract GraphTokenLockManager is MinimalProxyFactory, IGraphTokenLockManager {
     function _convertToBytes4(bytes memory _signature) internal pure returns (bytes4) {
         require(_signature.length == 4, "Invalid method signature");
         bytes4 sigHash;
-        // solium-disable-next-line security/no-inline-assembly
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             sigHash := mload(add(_signature, 32))
         }

@@ -6,6 +6,7 @@ yarn-error.log
 cache/
 build/
 dist/
+deployments/hardhat/
 
 # Hardhat cache
 cached/

@@ -1,4 +1,4 @@
-query GraphAccount($accountId: String, $blockNumber: Int) {
+query GraphAccount($accountId: ID!, $blockNumber: Int) {
   graphAccount(id: $accountId, block: { number: $blockNumber }) {
     id
     indexer {

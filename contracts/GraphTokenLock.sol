@@ -6,7 +6,7 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-import "./Ownable.sol";
+import { Ownable as OwnableInitializable } from "./Ownable.sol";
 import "./MathUtils.sol";
 import "./IGraphTokenLock.sol";
 
@@ -27,7 +27,7 @@ import "./IGraphTokenLock.sol";
  * perform the first release on the configured time. After that it will continue with the
  * default schedule.
  */
-abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
+abstract contract GraphTokenLock is OwnableInitializable, IGraphTokenLock {
     using SafeMath for uint256;
     using SafeERC20 for IERC20;
 
@@ -119,7 +119,7 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
 
         isInitialized = true;
 
-        Ownable.initialize(_owner);
+        OwnableInitializable._initialize(_owner);
         beneficiary = _beneficiary;
         token = IERC20(_token);
 
@@ -318,7 +318,9 @@ abstract contract GraphTokenLock is Ownable, IGraphTokenLock {
 
     /**
      * @notice Gets surplus amount in the contract based on outstanding amount to release
-     * @dev All funds over outstanding amount is considered surplus that can be withdrawn by beneficiary
+     * @dev All funds over outstanding amount is considered surplus that can be withdrawn by beneficiary.
+     * Note this might not be the correct value for wallets transferred to L2 (i.e. an L2GraphTokenLockWallet), as the released amount will be
+     * skewed, so the beneficiary might have to bridge back to L1 to release the surplus.
      * @return Amount of tokens considered as surplus
      */
     function surplusAmount() public view override returns (uint256) {

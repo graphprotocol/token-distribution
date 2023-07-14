@@ -58,9 +58,34 @@ The Manager supports creating TokenLock contracts based on a mastercopy bytecode
 
 For convenience, the Manager will also fund the created contract with the amount of each contract's managed tokens.
 
+## L2 deployment and transfer tools
+
+As part of the process for The Graph to move to Arbitrum, some contracts were added to allow GraphTokenLockWallet beneficiaries to transfer their funds to a vesting wallet in L2 and transfer their stake and delegations to L2 as well, where they will be owned by the L2 vesting wallet. See [GIP-0046](https://forum.thegraph.com/t/gip-0046-l2-transfer-tools/4023) for more details about the architecture.
+
+### L2GraphTokenLockWallet
+
+The L2 version of the GraphTokenLockWallet is essentially the same, but adds a special function to initialize a wallet with information received from L1. Keep in mind that **vesting contracts in L2 that are created from an L1 contract cannot release funds in L2 until the end of the full vesting timeline**. Funds can be sent back to L1 using the L2GraphTokenLockTransferTool to be released there.
+
+### L2GraphTokenLockManager
+
+The L2 manager inherits from GraphTokenLockManager but includes an `onTokenTransfer` function for the GRT bridge to call when receiving locked GRT from L1. The first time that GRT is received for a new L1 wallet, the corresponding L2GraphTokenLockWallet contract is created and initialized.
+
+### L1GraphTokenLockTransferTool
+
+For L1 GraphTokenLockWallet beneficiaries to transfer to L2, they must use this transfer tool contract. The contract allows beneficiaries to deposit ETH to pay for the L2 gas and fees related to sending messages to L2. It then allows two different flows, depending on the state of the vesting contract:
+
+- For fully vested GraphTokenLockWallet contracts, the wallet can call the transfer tool specifying the address that the beneficiary wants to use in L2. This will be a normal wallet (can be an EOA or a multisig in L2), and this will be queried by the Staking contract when transferring stake or delegation. Please note that **this address can only be set once and cannot be changed**.
+- For contracts that are still vesting, the wallet can call the transfer tool specifying an amount of GRT to transfer to L2. This GRT value will be sent from the vesting wallet's GRT balance, and must be nonzero. The caller can also specify a beneficiary that will own the L2 vesting wallet, which is only used if this hasn't already been set in a previous call.
+
+### L2GraphTokenLockTransferTool
+
+For beneficiaries of L1 vesting contracts to release funds that have been sent to L2, the GRT funds must be sent to L1 first. The L2GraphTokenLockTransferTool only has a `withdrawToL1Locked` function for this purpose, it will use the GRT bridge to send GRT to the L1 vesting contract that corresponds to the caller.
+
 ## Operations
 
-### Deploy
+For detailed instructions about deploying the manager or the transfer tools, check out [DEPLOYMENT.md](./DEPLOYMENT.md).
+
+### Deploying new vesting locks
 
 **1) Check configuration**
 

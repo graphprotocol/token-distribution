@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: MIT
+
 pragma solidity ^0.7.3;
 pragma experimental ABIEncoderV2;
 
@@ -38,6 +40,8 @@ contract StakingMock {
         require(address(_token) != address(0), "!token");
         token = _token;
     }
+
+    receive() external payable {}
 
     /**
      * @dev Deposit tokens on the indexer stake.
