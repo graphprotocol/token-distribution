@@ -26,6 +26,7 @@ jobs:
         env:
           NPM_TOKEN: ${{secrets.npm_token}}
         run: echo //registry.npmjs.org/:_authToken=${NPM_TOKEN} > ~/.npmrc
+      - run: yarn cache clean
       - run: yarn install --frozen-lockfile
       - run: yarn run build
       - run: yarn test
