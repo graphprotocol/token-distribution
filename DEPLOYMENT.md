@@ -110,6 +110,7 @@ The addition of the L1 transfer tool means adding a new authorized contract and 
 
 ```javascript
 transferToolAddress = '<the L1 transfer tool address>'
+stakingAddress = '<the L1 Staking address>
 l1Manager = '<the L1 manager address>'
 deployer = (await hre.ethers.getSigners())[0]
 tokenLockManager = await hre.ethers.getContractAt('GraphTokenLockManager', l1Manager)
@@ -117,6 +118,8 @@ await tokenLockManager.setAuthFunctionCall('depositToL2Locked(uint256,address,ui
 await tokenLockManager.setAuthFunctionCall('withdrawETH(address,uint256)', transferToolAddress)
 await tokenLockManager.setAuthFunctionCall('setL2WalletAddressManually(address)', transferToolAddress)
 await tokenLockManager.addTokenDestination(transferToolAddress)
+await tokenLockManager.setAuthFunctionCall('transferLockedDelegationToL2(address,uint256,uint256,uint256)', stakingAddress)
+await tokenLockManager.setAuthFunctionCall('transferLockedStakeToL2(uint256,uint256,uint256,uint256)', stakingAddress)
 // Repeat for each manager...
 ```
 
