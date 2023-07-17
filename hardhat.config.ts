@@ -151,7 +151,7 @@ const config = {
     customChains: []
   },
   typechain: {
-    outDir: 'build/typechain/contracts',
+    outDir: 'build/types',
     target: 'ethers-v5',
   },
   abiExporter: {
