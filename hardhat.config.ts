@@ -158,6 +158,7 @@ const config = {
     path: './build/abis',
     clear: false,
     flat: true,
+    runOnCompile: true,
   },
   contractSizer: {
     alphaSort: true,

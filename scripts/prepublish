@@ -10,7 +10,10 @@ yarn run build
 
 # Refresh distribution folder
 rm -rf dist && mkdir -p dist
-cp -R build/abis build/typechain dist
+cp -R build/abis/ dist/abis
+cp -R build/typechain/ ${TYPECHAIN_DIR}
+cp -R deployments/ dist/deployments
+cp -R .openzeppelin/ dist/.openzeppelin
 
 ### Build Typechain bindings
 
