@@ -12,7 +12,7 @@ yarn run build
 rm -rf dist && mkdir -p dist
 mkdir -p ${TYPECHAIN_DIR}/_src
 cp -R build/abis/ dist/abis
-cp -R build/types/ ${TYPECHAIN_DIR}/_src
+cp -R build/typechain/contracts/ ${TYPECHAIN_DIR}/_src
 cp -R deployments/ dist/deployments
 cp -R .openzeppelin/ dist/.openzeppelin
 
