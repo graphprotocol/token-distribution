@@ -13,6 +13,10 @@ task('manager-setup-auth', 'Setup default authorized functions in the manager')
     // Get contracts
     const manager = await getTokenLockManagerOrFail(hre, taskArgs.managerName)
 
+    logger.info('Setting up authorized functions...')
+    logger.log(`> GraphTokenLockManager: ${manager.address}`)
+    logger.log(`> Staking: ${taskArgs.targetAddress}`)
+
     // Prepare
     logger.log(await prettyEnv(hre))
 
