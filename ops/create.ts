@@ -225,7 +225,7 @@ const getDeployContractAddresses = async (entries: TokenLockConfigEntry[], manag
     // There are two type of managers
     let contractAddress = ''
     try {
-      contractAddress = await manager['getDeploymentAddress(bytes32,address, address)'](
+      contractAddress = await manager['getDeploymentAddress(bytes32,address,address)'](
         entry.salt,
         masterCopy,
         manager.address,
