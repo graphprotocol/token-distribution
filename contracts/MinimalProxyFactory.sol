@@ -26,7 +26,7 @@ contract MinimalProxyFactory {
         bytes32 _salt,
         address _implementation
     ) public view returns (address) {
-        return Create2.computeAddress(_salt, keccak256(_getContractCreationCode(_implementation)), address(this));
+        return getDeploymentAddress(_salt, _implementation, address(this));
     }
 
     /**

@@ -215,7 +215,7 @@ describe('L2GraphTokenLockManager', () => {
         endTime: initArgs.endTime,
       }
 
-      const expectedL2Address = await tokenLockManager.getDeploymentAddress(
+      const expectedL2Address = await tokenLockManager['getDeploymentAddress(bytes32,address,address)'](
         keccak256(data),
         tokenLockImplementation.address,
         tokenLockManager.address,
@@ -297,7 +297,7 @@ describe('L2GraphTokenLockManager', () => {
         endTime: initArgs.endTime,
       }
 
-      const expectedL2Address = await tokenLockManager.getDeploymentAddress(
+      const expectedL2Address = await tokenLockManager['getDeploymentAddress(bytes32,address,address)'](
         keccak256(data),
         tokenLockImplementation.address,
         tokenLockManager.address,
@@ -365,7 +365,7 @@ describe('L2GraphTokenLockManager', () => {
         ],
       )
 
-      const expectedL2Address = await tokenLockManager.getDeploymentAddress(
+      const expectedL2Address = await tokenLockManager['getDeploymentAddress(bytes32,address,address)'](
         keccak256(data),
         tokenLockImplementation.address,
         tokenLockManager.address,
@@ -375,7 +375,9 @@ describe('L2GraphTokenLockManager', () => {
       const transferredAmount = initArgs.managedAmount.sub(toGRT('100000'))
 
       // Call onTokenTransfer from the gateway:
-      await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
+      await tokenLockManager
+        .connect(gateway.signer)
+        .onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
 
       // Check that the token lock wallet was created with the correct parameters
       const tokenLock = (await ethers.getContractAt(
@@ -417,7 +419,7 @@ describe('L2GraphTokenLockManager', () => {
         ],
       )
 
-      const expectedL2Address = await tokenLockManager.getDeploymentAddress(
+      const expectedL2Address = await tokenLockManager['getDeploymentAddress(bytes32,address,address)'](
         keccak256(data),
         tokenLockImplementation.address,
         tokenLockManager.address,
@@ -427,7 +429,9 @@ describe('L2GraphTokenLockManager', () => {
       const transferredAmount = initArgs.managedAmount.sub(toGRT('100000'))
 
       // Call onTokenTransfer from the gateway:
-      await tokenLockManager.connect(gateway.signer).onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
+      await tokenLockManager
+        .connect(gateway.signer)
+        .onTokenTransfer(l1TransferToolMock.address, transferredAmount, data)
 
       // Check that the token lock wallet was created with the correct parameters
       const tokenLock = (await ethers.getContractAt(
