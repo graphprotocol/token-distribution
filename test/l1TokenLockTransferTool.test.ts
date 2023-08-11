@@ -282,10 +282,19 @@ describe('L1GraphTokenLockTransferTool', () => {
       // WalletMock constructor args are: target, token, manager, isInitialized, isAccepted
       await deployments.deploy('WalletMock', {
         from: deployer.address,
-        args: [transferTool.address, '0x5c946740441C12510a167B447B7dE565C20b9E3C', tokenLockManager.address, true, true],
+        args: [
+          transferTool.address,
+          '0x5c946740441C12510a167B447B7dE565C20b9E3C',
+          tokenLockManager.address,
+          true,
+          true,
+        ],
       })
       const wrongTokenWallet = await getContract('WalletMock')
-      const walletAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(wrongTokenWallet.address, deployer.signer)
+      const walletAsTransferTool = L1GraphTokenLockTransferTool__factory.connect(
+        wrongTokenWallet.address,
+        deployer.signer,
+      )
 
       const tx = walletAsTransferTool
         .connect(beneficiary.signer)
@@ -383,7 +392,7 @@ describe('L1GraphTokenLockTransferTool', () => {
           ],
         ],
       )
-      const expectedL2Address = await transferTool.getDeploymentAddress(
+      const expectedL2Address = await transferTool['getDeploymentAddress(bytes32,address,address)'](
         keccak256(expectedWalletData),
         l2LockImplementationMock.address,
         l2ManagerMock.address,
@@ -413,11 +422,9 @@ describe('L1GraphTokenLockTransferTool', () => {
         )
       // Check that the right amount of ETH has been pulled from the token lock's account
       await expect(tx)
-          .emit(transferTool, 'ETHPulled')
-          .withArgs(tokenLock.address, maxGas.mul(gasPrice).add(maxSubmissionCost))
-      await expect(tx)
-          .emit(transferTool, 'L2BeneficiarySet')
-          .withArgs(tokenLock.address, l2Beneficiary.address)
+        .emit(transferTool, 'ETHPulled')
+        .withArgs(tokenLock.address, maxGas.mul(gasPrice).add(maxSubmissionCost))
+      await expect(tx).emit(transferTool, 'L2BeneficiarySet').withArgs(tokenLock.address, l2Beneficiary.address)
       // Check the events emitted from the mock gateway
       await expect(tx)
         .emit(gateway, 'FakeTxToL2')
@@ -442,7 +449,7 @@ describe('L1GraphTokenLockTransferTool', () => {
           ],
         ],
       )
-      const expectedL2Address = await transferTool.getDeploymentAddress(
+      const expectedL2Address = await transferTool['getDeploymentAddress(bytes32,address,address)'](
         keccak256(expectedWalletData),
         l2LockImplementationMock.address,
         l2ManagerMock.address,
@@ -474,8 +481,7 @@ describe('L1GraphTokenLockTransferTool', () => {
           l2ManagerMock.address,
           amountToSend,
         )
-      await expect(tx)
-        .not.emit(transferTool, 'L2BeneficiarySet')
+      await expect(tx).not.emit(transferTool, 'L2BeneficiarySet')
       // Check the events emitted from the mock gateway
       await expect(tx)
         .emit(gateway, 'FakeTxToL2')
@@ -506,7 +512,7 @@ describe('L1GraphTokenLockTransferTool', () => {
           ],
         ],
       )
-      const expectedL2Address = await transferTool.getDeploymentAddress(
+      const expectedL2Address = await transferTool['getDeploymentAddress(bytes32,address,address)'](
         keccak256(expectedWalletData),
         l2LockImplementationMock.address,
         l2ManagerMock.address,

@@ -143,7 +143,7 @@ describe('L2GraphTokenLockTransferTool', () => {
 
     await expect(tx).emit(tokenLockManager, 'TokenLockCreatedFromL1')
 
-    const expectedL2Address = await tokenLockManager.getDeploymentAddress(
+    const expectedL2Address = await tokenLockManager['getDeploymentAddress(bytes32,address,address)'](
       keccak256(data),
       tokenLockImplementation.address,
       tokenLockManager.address,
