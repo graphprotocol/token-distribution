@@ -222,7 +222,18 @@ const getContractFactory = async (hre: HardhatRuntimeEnvironment, name: string) 
 const getDeployContractAddresses = async (entries: TokenLockConfigEntry[], manager: Contract) => {
   const masterCopy = await manager.masterCopy()
   for (const entry of entries) {
-    const contractAddress = await manager.getDeploymentAddress(entry.salt, masterCopy, manager.address)
+    // There are two type of managers
+    let contractAddress = ''
+    try {
+      contractAddress = await manager['getDeploymentAddress(bytes32,address,address)'](
+        entry.salt,
+        masterCopy,
+        manager.address,
+      )
+    } catch (error) {
+      contractAddress = await manager['getDeploymentAddress(bytes32,address)'](entry.salt, masterCopy)
+    }
+
     const deployEntry = { ...entry, salt: entry.salt, txHash: '', contractAddress }
     logger.log(prettyConfigEntry(deployEntry))
   }

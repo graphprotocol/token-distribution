@@ -14,6 +14,21 @@ contract MinimalProxyFactory {
     /// @dev Emitted when a new proxy is created
     event ProxyCreated(address indexed proxy);
 
+
+    /**
+     * @notice Gets the deterministic CREATE2 address for MinimalProxy with a particular implementation
+     * @dev Uses address(this) as deployer to compute the address. Only for backwards compatibility.
+     * @param _salt Bytes32 salt to use for CREATE2
+     * @param _implementation Address of the proxy target implementation
+     * @return Address of the counterfactual MinimalProxy
+     */
+    function getDeploymentAddress(
+        bytes32 _salt,
+        address _implementation
+    ) public view returns (address) {
+        return getDeploymentAddress(_salt, _implementation, address(this));
+    }
+
     /**
      * @notice Gets the deterministic CREATE2 address for MinimalProxy with a particular implementation
      * @param _salt Bytes32 salt to use for CREATE2
