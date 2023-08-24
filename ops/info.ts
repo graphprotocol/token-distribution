@@ -241,6 +241,7 @@ type WalletInfo = {
   tokensUsed: BigNumber
   tokensBalance: BigNumber
   graphAccount: GraphAccount
+  owner: string
 }
 
 async function getExtendedWalletInfo(
@@ -258,18 +259,15 @@ async function getExtendedWalletInfo(
       // Get on-chain data
       const tokensUsed = await contract.usedAmount({ blockTag: blockNumber })
       const tokensBalance = await contract.currentBalance({ blockTag: blockNumber })
+      const owner = await contract.owner({ blockTag: blockNumber })
 
       // Populate extra data
       walletInfoEntries[contract.address] = {
         tokensUsed,
         tokensBalance,
         graphAccount,
+        owner,
       }
-      console.log({
-        tokensUsed,
-        tokensBalance,
-        graphAccount,
-      })
     })
   })
   await queue.onIdle()
@@ -396,6 +394,7 @@ task('contracts:list', 'List all token lock contracts')
       'initHash',
       'txHash',
       'manager',
+      'owner',
       'tokensReleased',
       'tokensWithdrawn',
       'tokensAvailable',
@@ -411,7 +410,7 @@ task('contracts:list', 'List all token lock contracts')
     for (const wallet of allWallets) {
       // get used tokens in the protocol
       const extendedWallet = extendedWalletInfo[wallet.id]
-      const { graphAccount, tokensUsed, tokensBalance } = extendedWallet
+      const { graphAccount, tokensUsed, tokensBalance, owner } = extendedWallet
       const tokensUsedStaked = BigNumber.from(graphAccount.indexer?.stakedTokens || 0)
       const tokensUsedDelegated = graphAccount.delegator
         ? BigNumber.from(graphAccount.delegator.totalStakedTokens).sub(
@@ -433,6 +432,7 @@ task('contracts:list', 'List all token lock contracts')
         wallet.initHash,
         wallet.txHash,
         wallet.manager,
+        owner,
         toInt(wallet.tokensReleased),
         toInt(wallet.tokensWithdrawn),
         formatGRT(getAvailableAmount(wallet, block.timestamp)),
