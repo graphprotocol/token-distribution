@@ -101,6 +101,15 @@ beneficiary,managedAmount,startTime,endTime,periods,revocable,releaseStartTime,v
 ... N
 ```
 
+- **beneficiary** Address of the beneficiary of locked tokens.
+- **managedAmount** Amount of tokens to be managed by the lock contract.
+- **startTime** Start time of the release schedule.
+- **endTime** End time of the release schedule.
+- **periods** Number of periods between start time and end time.
+- **revocable** Whether the contract is revocable. Should be 1 for `Enabled` or 2 for 1 `Disable`. Setting this to 0 for `NotSet` will cause the transaction to fail with error `Must set a revocability option`.
+- **releaseStartTime** Override time for when the releases start.
+- **vestingCliffTime** Time the cliff vests, 0 if no cliff
+
 You can define one line per contract. Keep the header in the file.
 
 In addition to that, create an empty file in the `/ops` folder to store the results of the deployed contracts.
@@ -115,21 +124,33 @@ npx hardhat manager-deposit --amount <amount> --network <network>
 
 - **amount** is a string and it can have 18 decimals. For example 1000.12
 
-- **network** depends on the `hardhat.config` but most of the times will be rinkeby or mainnet.
+- **network** depends on the `hardhat.config` but most of the times will be sepolia or mainnet.
 
 **3) Deploy the contracts**
 
 ```
-npx hardhat create-token-locks --deploy-file <file-name> --result-file <file-name-results> --owner-address <owner-address> --network <network>
+npx hardhat create-token-locks --network sepolia \
+    --deploy-file <deploy-file> \
+    --result-file <result-file> \
+    --owner-address <owner-address> \
+    --dry-run (Flag) \
+    --tx-builder (Flag) \
+    --tx-builder-template <tx-builder-template> (Optional)
 ```
 
-- **file-name** file name under `/ops` that contains the contracts to deploy.
+- **network** depends on the hardhat.config but most of the times will be rinkeby or mainnet.
 
-- **file-name-results** file with the results of deployments.
+- **deploy-file** file name under `/ops` that contains the contracts to deploy.
+
+- **result-file** file with the results of deployments.
 
 - **owner-address** address to use as owner of the vesting contracts. The owner can revoke the contract if revocable.
 
-- **network** depends on the hardhat.config but most of the times will be rinkeby or mainnet .
+- **dry-run** Get the deterministic contract addresses but do not deploy.
+
+- **tx-builder** Output transaction batch in JSON format, compatible with Gnosis Safe transaction builder. Does not deploy contracts.
+
+- **tx-builder-template** File to use as a template for the transaction builder.
 
 ## Copyright
 
