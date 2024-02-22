@@ -43,6 +43,13 @@ contract GraphTokenLockWallet is GraphTokenLock {
     event TokenDestinationsApproved();
     event TokenDestinationsRevoked();
 
+    /**
+     * @notice GraphTokenLockWallet constructor, only used to initialize the implementation contract
+     */
+    constructor() {
+        isInitialized = true;
+    }
+
     // Initializer
     function initialize(
         address _manager,
