@@ -114,6 +114,10 @@ abstract contract GraphTokenLock is OwnableInitializable, IGraphTokenLock {
         require(_startTime < _endTime, "Start time > end time");
         require(_periods >= MIN_PERIOD, "Periods cannot be below minimum");
         require(_revocable != Revocability.NotSet, "Must set a revocability option");
+        require(
+            _revocable == Revocability.Enabled || _revocable == Revocability.Disabled,
+            "Must set a valid revocability option"
+        );
         require(_releaseStartTime < _endTime, "Release start time must be before end time");
         require(_vestingCliffTime < _endTime, "Cliff time must be before end time");
 
