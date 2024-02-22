@@ -1,3 +1,5 @@
+⚠️ This repository has been moved to https://github.com/graphprotocol/contracts and is now deprecated ⚠️ 
+
 # Graph Protocol Token Lock
 
 This repository contains a number of contracts that will support the locking of tokens of participants under different schedules.
